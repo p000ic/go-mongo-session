@@ -1,4 +1,4 @@
-module go-mongo-session
+module github.com/p000ic/go-mongo-session
 
 go 1.17
 
