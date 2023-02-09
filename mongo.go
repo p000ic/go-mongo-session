@@ -30,7 +30,7 @@ func NewStore(cfg *Config) session.ManagerStore {
 			AuthMechanism: cfg.AuthMechanism,
 			Username:      cfg.Username,
 			Password:      cfg.Password,
-			AuthSource:    cfg.DB,
+			AuthSource:    cfg.AuthSource,
 		}
 	}
 	var m managerStore
@@ -39,10 +39,10 @@ func NewStore(cfg *Config) session.ManagerStore {
 	if err != nil {
 		return nil
 	}
-	m.dbname = cfg.DB
+	m.dbname = cfg.Source
 	m.cname = cfg.Collection
-	m.authDBName = cfg.Source
-	m.source = m.client.Database(cfg.DB)
+	m.authDBName = cfg.AuthSource
+	m.source = m.client.Database(cfg.Source)
 	mgrStore := newManagerStore(&m, cfg)
 	return mgrStore
 }
@@ -229,6 +229,11 @@ func (s *store) Set(key string, value interface{}) {
 
 func (s *store) Get(key string) (interface{}, bool) {
 	s.RLock()
+	v, err := s.s.getValue(s.sid)
+	if err != nil {
+		return nil, false
+	}
+	log.Printf("%s::%s::%s", v, s.sid, key)
 	val, ok := s.values[key]
 	s.RUnlock()
 	return val, ok
@@ -249,8 +254,12 @@ func (s *store) Delete(key string) interface{} {
 func (s *store) Flush() error {
 	s.Lock()
 	s.values = make(map[string]interface{})
+	err := s.s.c(s.s.cname).Remove(s.ctx, bson.M{"sid": s.sid})
+	if err != nil {
+		return err
+	}
 	s.Unlock()
-	return s.Save()
+	return nil
 }
 
 func (s *store) Save() error {

@@ -18,7 +18,7 @@ func TestStore(t *testing.T) {
 	mStore := NewStore(cfg)
 	defer mStore.Close()
 	Convey("Test mongo storage operation", t, func() {
-		sid := "test_mongo_store"
+		sid := "test_mongo_store0"
 		store0, err := mStore.Create(context.Background(), sid, 300)
 		So(err, ShouldBeNil)
 
@@ -60,25 +60,28 @@ func TestManagerStore(t *testing.T) {
 	mStore := NewStore(cfg)
 	defer mStore.Close()
 	Convey("Test mongo-based storage management operations", t, func() {
-		sid := "test_manager_store"
-		store, err := mStore.Create(context.Background(), sid, 100)
-		So(store, ShouldNotBeNil)
+		sid := "test_manager_store1"
+		store0, err := mStore.Create(context.Background(), sid, 100)
+		So(store0, ShouldNotBeNil)
 		So(err, ShouldBeNil)
 
-		store.Set("foo", "bar")
-		err = store.Save()
+		store0.Set("foo", "bar")
+		err = store0.Save()
 		So(err, ShouldBeNil)
 
-		store1, err := mStore.Update(context.Background(), sid, 10)
-		So(store1, ShouldNotBeNil)
-		So(err, ShouldBeNil)
-
-		foo, ok := store1.Get("foo")
+		foo, ok := store0.Get("foo")
 		So(ok, ShouldBeTrue)
-		So(foo, ShouldBeNil)
+		So(foo, ShouldEqual, "bar")
 
-		newsid := "test_manager_store2"
-		store2, err := mStore.Refresh(context.Background(), sid, newsid, 10)
+		store0, err = mStore.Update(context.Background(), sid, 10)
+		So(store0, ShouldNotBeNil)
+		So(err, ShouldBeNil)
+
+		err = store0.Flush()
+		So(err, ShouldBeNil)
+
+		newSID := "test_manager_store2"
+		store2, err := mStore.Refresh(context.Background(), sid, newSID, 10)
 		So(store2, ShouldNotBeNil)
 		So(err, ShouldBeNil)
 
@@ -90,10 +93,10 @@ func TestManagerStore(t *testing.T) {
 		So(exists, ShouldBeFalse)
 		So(err, ShouldBeNil)
 
-		err = mStore.Delete(context.Background(), newsid)
+		err = mStore.Delete(context.Background(), newSID)
 		So(err, ShouldBeNil)
 
-		exists, err = mStore.Check(context.Background(), newsid)
+		exists, err = mStore.Check(context.Background(), newSID)
 		So(exists, ShouldBeFalse)
 		So(err, ShouldBeNil)
 	})
