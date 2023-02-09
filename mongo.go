@@ -30,7 +30,7 @@ func NewStore(cfg *Config***REMOVED*** session.ManagerStore {
 			AuthMechanism: cfg.AuthMechanism,
 			Username:      cfg.Username,
 			Password:      cfg.Password,
-			AuthSource:    cfg.DB,
+			AuthSource:    cfg.AuthSource,
 		***REMOVED***
 	***REMOVED***
 	var m managerStore
@@ -39,10 +39,10 @@ func NewStore(cfg *Config***REMOVED*** session.ManagerStore {
 ***REMOVED***
 ***REMOVED*** nil
 	***REMOVED***
-	m.dbname = cfg.DB
+	m.dbname = cfg.Source
 	m.cname = cfg.Collection
-	m.authDBName = cfg.Source
-	m.source = m.client.Database(cfg.DB***REMOVED***
+	m.authDBName = cfg.AuthSource
+	m.source = m.client.Database(cfg.Source***REMOVED***
 	mgrStore := newManagerStore(&m, cfg***REMOVED***
 	return mgrStore
 ***REMOVED***
@@ -229,6 +229,11 @@ func (s *store***REMOVED*** Set(key string, value interface{***REMOVED******REMO
 
 func (s *store***REMOVED*** Get(key string***REMOVED*** (interface{***REMOVED***, bool***REMOVED*** {
 	s.RLock(***REMOVED***
+	v, err := s.s.getValue(s.sid***REMOVED***
+***REMOVED***
+***REMOVED*** nil, false
+	***REMOVED***
+	log.Printf("%s::%s::%s", v, s.sid, key***REMOVED***
 	val, ok := s.values[key]
 	s.RUnlock(***REMOVED***
 	return val, ok
@@ -249,8 +254,12 @@ func (s *store***REMOVED*** Delete(key string***REMOVED*** interface{***REMOVED*
 func (s *store***REMOVED*** Flush(***REMOVED*** error {
 	s.Lock(***REMOVED***
 	s.values = make(map[string]interface{***REMOVED******REMOVED***
+	err := s.s.c(s.s.cname***REMOVED***.Remove(s.ctx, bson.M{"sid": s.sid***REMOVED******REMOVED***
+***REMOVED***
+***REMOVED*** err
+	***REMOVED***
 	s.Unlock(***REMOVED***
-	return s.Save(***REMOVED***
+	return nil
 ***REMOVED***
 
 func (s *store***REMOVED*** Save(***REMOVED*** error {

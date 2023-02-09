@@ -3,25 +3,25 @@
 // Config mongodb configuration parameters
 type Config struct {
 	URL           string
-	DB            string
+	Source        string
 	Collection    string
 	AuthMechanism string
 	Username      string
 	Password      string
-	Source        string
+	AuthSource    string
 	Auth          bool
 ***REMOVED***
 
 // NewConfig create mongodb configuration
-func NewConfig(url, db, collection, username, password, authSource string***REMOVED*** *Config {
+func NewConfig(url, source, collection, username, password, authSource string***REMOVED*** *Config {
 	return &Config{
 		URL:           url,
-		DB:            db,
+		Source:        source,
 		Collection:    collection,
 		AuthMechanism: "SCRAM-SHA-1",
 		Username:      username,
 		Password:      password,
-		Source:        authSource,
+		AuthSource:    authSource,
 		Auth:          false,
 	***REMOVED***
 ***REMOVED***

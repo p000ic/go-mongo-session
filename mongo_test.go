@@ -18,7 +18,7 @@ func TestStore(t *testing.T***REMOVED*** {
 	mStore := NewStore(cfg***REMOVED***
 	defer mStore.Close(***REMOVED***
 	Convey("Test mongo storage operation", t, func(***REMOVED*** {
-		sid := "test_mongo_store"
+***REMOVED***
 		store0, err := mStore.Create(context.Background(***REMOVED***, sid, 300***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
@@ -60,25 +60,28 @@ func TestManagerStore(t *testing.T***REMOVED*** {
 	mStore := NewStore(cfg***REMOVED***
 	defer mStore.Close(***REMOVED***
 	Convey("Test mongo-based storage management operations", t, func(***REMOVED*** {
-		sid := "test_manager_store"
-		store, err := mStore.Create(context.Background(***REMOVED***, sid, 100***REMOVED***
-		So(store, ShouldNotBeNil***REMOVED***
+***REMOVED***
+		store0, err := mStore.Create(context.Background(***REMOVED***, sid, 100***REMOVED***
+		So(store0, ShouldNotBeNil***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
-		store.Set("foo", "bar"***REMOVED***
-		err = store.Save(***REMOVED***
+		store0.Set("foo", "bar"***REMOVED***
+		err = store0.Save(***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
-		store1, err := mStore.Update(context.Background(***REMOVED***, sid, 10***REMOVED***
-		So(store1, ShouldNotBeNil***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
-
-		foo, ok := store1.Get("foo"***REMOVED***
+		foo, ok := store0.Get("foo"***REMOVED***
 		So(ok, ShouldBeTrue***REMOVED***
-		So(foo, ShouldBeNil***REMOVED***
+		So(foo, ShouldEqual, "bar"***REMOVED***
 
-		newsid := "test_manager_store2"
-		store2, err := mStore.Refresh(context.Background(***REMOVED***, sid, newsid, 10***REMOVED***
+		store0, err = mStore.Update(context.Background(***REMOVED***, sid, 10***REMOVED***
+		So(store0, ShouldNotBeNil***REMOVED***
+		So(err, ShouldBeNil***REMOVED***
+
+		err = store0.Flush(***REMOVED***
+		So(err, ShouldBeNil***REMOVED***
+
+***REMOVED***
+		store2, err := mStore.Refresh(context.Background(***REMOVED***, sid, newSID, 10***REMOVED***
 		So(store2, ShouldNotBeNil***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
@@ -90,10 +93,10 @@ func TestManagerStore(t *testing.T***REMOVED*** {
 		So(exists, ShouldBeFalse***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
-		err = mStore.Delete(context.Background(***REMOVED***, newsid***REMOVED***
+		err = mStore.Delete(context.Background(***REMOVED***, newSID***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
-		exists, err = mStore.Check(context.Background(***REMOVED***, newsid***REMOVED***
+		exists, err = mStore.Check(context.Background(***REMOVED***, newSID***REMOVED***
 		So(exists, ShouldBeFalse***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 	***REMOVED******REMOVED***
