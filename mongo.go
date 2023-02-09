@@ -3,12 +3,12 @@
 ***REMOVED***
 ***REMOVED***
 	"encoding/json"
-	"github.com/qiniu/qmgo/options"
 	"log"
 	"time"
 
-	"github.com/go-session/session"
+	"github.com/go-session/session/v3"
 	"github.com/qiniu/qmgo"
+	"github.com/qiniu/qmgo/options"
 	"go.mongodb.org/mongo-driver/bson"
 	mongoOpts "go.mongodb.org/mongo-driver/mongo/options"
 ***REMOVED***
@@ -57,7 +57,7 @@ func newManagerStore(m *managerStore, cfg *Config***REMOVED*** *managerStore {
 ***REMOVED***
 ***REMOVED*** nil
 	***REMOVED***
-	//t := true
+	t := true
 	i := int32(60***REMOVED***
 	_ = m.c(cfg.Collection***REMOVED***.CreateIndexes(m.ctx, []options.IndexModel{{
 		Key:          []string{"expired_at"***REMOVED***,
@@ -65,7 +65,7 @@ func newManagerStore(m *managerStore, cfg *Config***REMOVED*** *managerStore {
 	***REMOVED******REMOVED***
 	_ = m.c(cfg.Collection***REMOVED***.CreateIndexes(m.ctx, []options.IndexModel{{
 		Key:          []string{"sid"***REMOVED***,
-		IndexOptions: &mongoOpts.IndexOptions{***REMOVED******REMOVED***,
+		IndexOptions: &mongoOpts.IndexOptions{Unique: &t***REMOVED******REMOVED***,
 	***REMOVED******REMOVED***
 	return m
 ***REMOVED***
