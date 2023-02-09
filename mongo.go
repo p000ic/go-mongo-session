@@ -3,12 +3,12 @@ package mongo
 import (
 	"context"
 	"encoding/json"
-	"github.com/qiniu/qmgo/options"
 	"log"
 	"time"
 
-	"github.com/go-session/session"
+	"github.com/go-session/session/v3"
 	"github.com/qiniu/qmgo"
+	"github.com/qiniu/qmgo/options"
 	"go.mongodb.org/mongo-driver/bson"
 	mongoOpts "go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -57,7 +57,7 @@ func newManagerStore(m *managerStore, cfg *Config) *managerStore {
 	if err != nil {
 		return nil
 	}
-	//t := true
+	t := true
 	i := int32(60)
 	_ = m.c(cfg.Collection).CreateIndexes(m.ctx, []options.IndexModel{{
 		Key:          []string{"expired_at"},
@@ -65,7 +65,7 @@ func newManagerStore(m *managerStore, cfg *Config) *managerStore {
 	})
 	_ = m.c(cfg.Collection).CreateIndexes(m.ctx, []options.IndexModel{{
 		Key:          []string{"sid"},
-		IndexOptions: &mongoOpts.IndexOptions{}},
+		IndexOptions: &mongoOpts.IndexOptions{Unique: &t}},
 	})
 	return m
 }

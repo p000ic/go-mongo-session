@@ -3,7 +3,7 @@ module github.com/p000ic/go-mongo-session
 go 1.17
 
 require (
-	github.com/go-session/session v3.1.2+incompatible
+	github.com/go-session/session/v3 v3.1.6
 	github.com/qiniu/qmgo v1.0.7
 	github.com/smartystreets/goconvey v1.7.2
 	go.mongodb.org/mongo-driver v1.8.4
@@ -15,7 +15,7 @@ require (
 	github.com/go-playground/validator/v10 v10.4.1 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
+	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/leodido/go-urn v1.2.0 // indirect

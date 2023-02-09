@@ -13,7 +13,7 @@ type Config struct {
 }
 
 // NewConfig create mongodb configuration
-func NewConfig(url, db, collection, username, password, authsource string) *Config {
+func NewConfig(url, db, collection, username, password, authSource string) *Config {
 	return &Config{
 		URL:           url,
 		DB:            db,
@@ -21,7 +21,7 @@ func NewConfig(url, db, collection, username, password, authsource string) *Conf
 		AuthMechanism: "SCRAM-SHA-1",
 		Username:      username,
 		Password:      password,
-		Source:        authsource,
+		Source:        authSource,
 		Auth:          false,
 	}
 }

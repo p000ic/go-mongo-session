@@ -2,7 +2,6 @@ package mongo
 
 import (
 	"context"
-	"github.com/go-session/session"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -20,40 +19,37 @@ func TestStore(t *testing.T) {
 	defer mStore.Close()
 	Convey("Test mongo storage operation", t, func() {
 		sid := "test_mongo_store"
-		store, err := mStore.Create(context.Background(), sid, 300)
+		store0, err := mStore.Create(context.Background(), sid, 300)
 		So(err, ShouldBeNil)
 
-		err = store.Flush()
-		So(err, ShouldBeNil)
-
-		foo, ok := store.Get("foo")
+		foo0, ok := store0.Get("foo")
 		So(ok, ShouldBeFalse)
-		So(foo, ShouldBeNil)
+		So(foo0, ShouldBeNil)
 
-		store.Set("foo", "bar")
-		store.Set("foo2", "bar2")
-		err = store.Save()
+		store0.Set("foo", "bar")
+		store0.Set("foo2", "bar2")
+		err = store0.Save()
 		So(err, ShouldBeNil)
 
-		foo, ok = store.Get("foo")
+		foo1, ok := store0.Get("foo")
 		So(ok, ShouldBeTrue)
+		So(foo1, ShouldEqual, "bar")
+
+		foo := store0.Delete("foo")
 		So(foo, ShouldEqual, "bar")
 
-		foo = store.Delete("foo")
-		So(foo, ShouldEqual, "bar")
-
-		foo, ok = store.Get("foo")
+		foo, ok = store0.Get("foo")
 		So(ok, ShouldBeFalse)
 		So(foo, ShouldBeNil)
 
-		foo2, ok := store.Get("foo2")
+		foo2, ok := store0.Get("foo2")
 		So(ok, ShouldBeTrue)
 		So(foo2, ShouldEqual, "bar2")
 
-		err = store.Flush()
+		err = store0.Flush()
 		So(err, ShouldBeNil)
 
-		foo2, ok = store.Get("foo2")
+		foo2, ok = store0.Get("foo2")
 		So(ok, ShouldBeFalse)
 		So(foo2, ShouldBeNil)
 	})
@@ -62,40 +58,31 @@ func TestStore(t *testing.T) {
 func TestManagerStore(t *testing.T) {
 	cfg := NewConfig(url, dbName, cName, "", "", "")
 	mStore := NewStore(cfg)
-	defer func(mStore session.ManagerStore) {
-		err := mStore.Close()
-		if err != nil {
-
-		}
-	}(mStore)
-
+	defer mStore.Close()
 	Convey("Test mongo-based storage management operations", t, func() {
 		sid := "test_manager_store"
-		store, err := mStore.Create(context.Background(), sid, 10)
+		store, err := mStore.Create(context.Background(), sid, 100)
 		So(store, ShouldNotBeNil)
-		So(err, ShouldBeNil)
-
-		err = store.Flush()
 		So(err, ShouldBeNil)
 
 		store.Set("foo", "bar")
 		err = store.Save()
 		So(err, ShouldBeNil)
 
-		store, err = mStore.Update(context.Background(), sid, 10)
-		So(store, ShouldNotBeNil)
+		store1, err := mStore.Update(context.Background(), sid, 10)
+		So(store1, ShouldNotBeNil)
 		So(err, ShouldBeNil)
 
-		foo, ok := store.Get("foo")
-		So(ok, ShouldBeFalse)
+		foo, ok := store1.Get("foo")
+		So(ok, ShouldBeTrue)
 		So(foo, ShouldBeNil)
 
 		newsid := "test_manager_store2"
-		store, err = mStore.Refresh(context.Background(), sid, newsid, 10)
-		So(store, ShouldNotBeNil)
+		store2, err := mStore.Refresh(context.Background(), sid, newsid, 10)
+		So(store2, ShouldNotBeNil)
 		So(err, ShouldBeNil)
 
-		foo, ok = store.Get("foo")
+		foo, ok = store2.Get("foo")
 		So(ok, ShouldBeFalse)
 		So(foo, ShouldBeNil)
 
