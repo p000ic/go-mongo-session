@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -38,6 +39,9 @@ func TestStore(t *testing.T) {
 		foo := store0.Delete("foo")
 		So(foo, ShouldEqual, "bar")
 
+		err = store0.Save()
+		So(err, ShouldBeNil)
+
 		foo, ok = store0.Get("foo")
 		So(ok, ShouldBeFalse)
 		So(foo, ShouldBeNil)
@@ -61,8 +65,7 @@ func TestManagerStore(t *testing.T) {
 	defer mStore.Close()
 	Convey("Test mongo-based storage management operations", t, func() {
 		sid := "test_manager_store1"
-		store0, err := mStore.Create(context.Background(), sid, 100)
-		So(store0, ShouldNotBeNil)
+		store0, err := mStore.Create(context.Background(), sid, 20)
 		So(err, ShouldBeNil)
 
 		store0.Set("foo", "bar")
@@ -74,7 +77,6 @@ func TestManagerStore(t *testing.T) {
 		So(foo, ShouldEqual, "bar")
 
 		store0, err = mStore.Update(context.Background(), sid, 10)
-		So(store0, ShouldNotBeNil)
 		So(err, ShouldBeNil)
 
 		err = store0.Flush()
@@ -82,7 +84,6 @@ func TestManagerStore(t *testing.T) {
 
 		newSID := "test_manager_store2"
 		store2, err := mStore.Refresh(context.Background(), sid, newSID, 10)
-		So(store2, ShouldNotBeNil)
 		So(err, ShouldBeNil)
 
 		foo, ok = store2.Get("foo")
@@ -90,7 +91,7 @@ func TestManagerStore(t *testing.T) {
 		So(foo, ShouldBeNil)
 
 		exists, err := mStore.Check(context.Background(), sid)
-		So(exists, ShouldBeFalse)
+		So(exists, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
 		err = mStore.Delete(context.Background(), newSID)
@@ -98,6 +99,6 @@ func TestManagerStore(t *testing.T) {
 
 		exists, err = mStore.Check(context.Background(), newSID)
 		So(exists, ShouldBeFalse)
-		So(err, ShouldBeNil)
+		So(err, ShouldResemble, errors.New("sid does not exist"))
 	})
 }

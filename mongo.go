@@ -3,14 +3,11 @@ package mongo
 import (
 	"context"
 	"encoding/json"
-	"log"
-	"time"
-
 	"github.com/go-session/session/v3"
 	"github.com/qiniu/qmgo"
 	"github.com/qiniu/qmgo/options"
-	"go.mongodb.org/mongo-driver/bson"
 	mongoOpts "go.mongodb.org/mongo-driver/mongo/options"
+	"sync"
 )
 
 var (
@@ -33,78 +30,52 @@ func NewStore(cfg *Config) session.ManagerStore {
 			AuthSource:    cfg.AuthSource,
 		}
 	}
-	var m managerStore
+	var m db
 	m.ctx = ctx
 	m.client, err = qmgo.NewClient(ctx, &dbConfig)
 	if err != nil {
 		return nil
 	}
-	m.dbname = cfg.Source
-	m.cname = cfg.Collection
-	m.authDBName = cfg.AuthSource
-	m.source = m.client.Database(cfg.Source)
+	m.source = cfg.Source
+	m.collection = cfg.Collection
+	m.authSource = cfg.AuthSource
+	m.database = m.client.Database(cfg.Source)
 	mgrStore := newManagerStore(&m, cfg)
 	return mgrStore
 }
 
 // NewStoreWithSession Create an instance of a mongo store
-func NewStoreWithSession(m *managerStore, cfg *Config) session.ManagerStore {
+func NewStoreWithSession(m *db, cfg *Config) session.ManagerStore {
 	return newManagerStore(m, cfg)
 }
 
-func newManagerStore(m *managerStore, cfg *Config) *managerStore {
-	err := m.cloneSession()
+func newManagerStore(db *db, cfg *Config) *managerStore {
+	err := db.cloneSession()
 	if err != nil {
 		return nil
 	}
 	t := true
 	i := int32(60)
-	_ = m.c(cfg.Collection).CreateIndexes(m.ctx, []options.IndexModel{{
+	_ = db.c(cfg.Collection).CreateIndexes(db.ctx, []options.IndexModel{{
 		Key:          []string{"expired_at"},
 		IndexOptions: &mongoOpts.IndexOptions{ExpireAfterSeconds: &i}},
 	})
-	_ = m.c(cfg.Collection).CreateIndexes(m.ctx, []options.IndexModel{{
+	_ = db.c(cfg.Collection).CreateIndexes(db.ctx, []options.IndexModel{{
 		Key:          []string{"sid"},
 		IndexOptions: &mongoOpts.IndexOptions{Unique: &t}},
 	})
-	return m
-}
-
-func (ms *managerStore) getValue(sid string) (value string, err error) {
-	var item sessionItem
-	err = ms.c(ms.cname).Find(ms.ctx, sessionItem{SID: sid}).One(item)
-	if err != nil {
-		if err == qmgo.ErrNoSuchDocuments {
-			value = ""
-			err = nil
-			return
-		}
-		value = ""
-		return
-	} else if item.ExpiredAt.Before(time.Now().UTC()) {
-		value = ""
-		err = nil
-		return
+	return &managerStore{
+		db:      db,
+		ctx:     context.Background(),
+		sid:     "",
+		expired: 0,
+		values:  nil,
+		RWMutex: sync.RWMutex{},
 	}
-	value = item.Value
-	err = nil
-	return
-}
-
-func (ms *managerStore) parseValue(value string) (map[string]interface{}, error) {
-	var values map[string]interface{}
-	if len(value) > 0 {
-		err := jsonUnmarshal([]byte(value), &values)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return values, nil
 }
 
 func (ms *managerStore) Check(_ context.Context, sid string) (bool, error) {
-	val, err := ms.getValue(sid)
+	val, err := ms.db.get(sid)
 	if err != nil {
 		return false, err
 	}
@@ -112,46 +83,39 @@ func (ms *managerStore) Check(_ context.Context, sid string) (bool, error) {
 }
 
 func (ms *managerStore) Create(ctx context.Context, sid string, expired int64) (session.Store, error) {
-	return newStore(ctx, ms, sid, expired, nil), nil
+	return newStore(ctx, ms.db, sid, expired, nil), nil
 }
 
 func (ms *managerStore) Update(ctx context.Context, sid string, expired int64) (session.Store, error) {
-	err := ms.cloneSession()
+	value, err := ms.db.get(sid)
 	if err != nil {
+		// log.Printf("get::%s::%s", err, sid)
+		return nil, err
+	} else if len(value) == 0 {
+		return newStore(ctx, ms.db, sid, expired, nil), nil
+	}
+
+	values, err := ms.db.parseValue(value)
+	if err != nil {
+		// log.Printf("parse-value::%s::%s", err, sid)
 		return nil, err
 	}
 
-	value, err := ms.getValue(sid)
+	err = ms.db.save(sid, values, expired)
 	if err != nil {
-		return nil, err
-	} else if value == "" {
-		log.Printf("%s", value)
-		return newStore(ctx, ms, sid, expired, nil), nil
-	}
-
-	err = ms.c(ms.cname).UpdateOne(ms.ctx, sessionItem{SID: sid}, bson.M{
-		"$set": sessionItem{
-			ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
-		},
-	})
-	if err != nil {
+		// log.Printf("save::%s::%s", err, sid)
 		return nil, err
 	}
 
-	values, err := ms.parseValue(value)
-	if err != nil {
-		return nil, err
-	}
-	log.Printf("%+v", values)
-	return newStore(ctx, ms, sid, expired, values), nil
+	return newStore(ctx, ms.db, sid, expired, values), nil
 }
 
 func (ms *managerStore) Delete(_ context.Context, sid string) error {
-	err := ms.cloneSession()
+	err := ms.db.cloneSession()
 	if err != nil {
 		return err
 	}
-	err = ms.c(ms.cname).Remove(ms.ctx, sessionItem{SID: sid})
+	err = ms.db.delete(sid)
 	if err != nil {
 		if err == qmgo.ErrNoSuchDocuments {
 			err = nil
@@ -162,50 +126,42 @@ func (ms *managerStore) Delete(_ context.Context, sid string) error {
 	return nil
 }
 
-func (ms *managerStore) Refresh(ctx context.Context, oldsid, sid string, expired int64) (session.Store, error) {
-	value, err := ms.getValue(oldsid)
+func (ms *managerStore) Refresh(ctx context.Context, oldSid, sid string, expired int64) (session.Store, error) {
+	value, err := ms.db.get(oldSid)
 	if err != nil {
 		return nil, err
 	} else if value == "" {
-		return newStore(ctx, ms, sid, expired, nil), nil
+		return newStore(ctx, ms.db, sid, expired, nil), nil
 	}
 
-	err = ms.cloneSession()
-	if err != nil {
-		return nil, err
-	}
-	_, err = ms.c(ms.cname).InsertOne(ms.ctx, sessionItem{
-		SID:       sid,
-		Value:     value,
-		ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = ms.c(ms.cname).Remove(ms.ctx, sessionItem{SID: oldsid})
+	values, err := ms.db.parseValue(value)
 	if err != nil {
 		return nil, err
 	}
 
-	values, err := ms.parseValue(value)
+	err = ms.db.save(sid, values, expired)
 	if err != nil {
 		return nil, err
 	}
 
-	return newStore(ctx, ms, sid, expired, values), nil
+	if err != nil {
+		return nil, err
+	}
+
+	return newStore(ctx, ms.db, sid, expired, values), nil
 }
 
 func (ms *managerStore) Close() error {
-	ms.close()
+	ms.db.close()
 	return nil
 }
 
-func newStore(ctx context.Context, s *managerStore, sid string, expired int64, values map[string]interface{}) *store {
+func newStore(ctx context.Context, db *db, sid string, expired int64, values map[string]interface{}) *store {
 	if values == nil {
 		values = make(map[string]interface{})
 	}
 	return &store{
-		s:       s,
+		db:      db,
 		ctx:     ctx,
 		sid:     sid,
 		expired: expired,
@@ -221,32 +177,35 @@ func (s *store) SessionID() string {
 	return s.sid
 }
 
-func (s *store) Set(key string, value interface{}) {
-	s.Lock()
-	s.values[key] = value
-	s.Unlock()
-}
-
 func (s *store) Get(key string) (interface{}, bool) {
-	s.RLock()
-	v, err := s.s.getValue(s.sid)
+	s.Lock()
+	defer s.Unlock()
+	value, err := s.db.get(s.sid)
 	if err != nil {
+		// log.Printf("get::%s::%s", err, s.sid)
 		return nil, false
 	}
-	log.Printf("%s::%s::%s", v, s.sid, key)
-	val, ok := s.values[key]
-	s.RUnlock()
+	values, err := s.db.parseValue(value)
+	if err != nil {
+		// log.Printf("parse-value::%s::%s", err, s.sid)
+		return nil, false
+	}
+	val, ok := values[key]
 	return val, ok
 }
 
+func (s *store) Set(key string, value interface{}) {
+	s.Lock()
+	defer s.Unlock()
+	s.values[key] = value
+}
+
 func (s *store) Delete(key string) interface{} {
-	s.RLock()
+	s.Lock()
+	defer s.Unlock()
 	v, ok := s.values[key]
-	s.RUnlock()
 	if ok {
-		s.Lock()
 		delete(s.values, key)
-		s.Unlock()
 	}
 	return v
 }
@@ -254,31 +213,14 @@ func (s *store) Delete(key string) interface{} {
 func (s *store) Flush() error {
 	s.Lock()
 	s.values = make(map[string]interface{})
-	err := s.s.c(s.s.cname).Remove(s.ctx, bson.M{"sid": s.sid})
-	if err != nil {
-		return err
-	}
 	s.Unlock()
-	return nil
+	return s.Save()
 }
 
 func (s *store) Save() error {
-	var value string
-	s.RLock()
-	if len(s.values) > 0 {
-		buf, err := jsonMarshal(s.values)
-		if err != nil {
-			s.RUnlock()
-			return err
-		}
-		value = string(buf)
-	}
-	s.RUnlock()
-	_, err := s.s.c(s.s.cname).Upsert(s.ctx, sessionItem{SID: s.sid}, sessionItem{
-		SID:       s.sid,
-		Value:     value,
-		ExpiredAt: time.Now().UTC().Add(time.Duration(s.expired) * time.Second),
-	})
+	s.Lock()
+	defer s.Unlock()
+	err := s.db.save(s.sid, s.values, s.expired)
 	if err != nil {
 		return err
 	}

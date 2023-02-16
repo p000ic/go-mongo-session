@@ -2,25 +2,36 @@ package mongo
 
 import (
 	"context"
+	"errors"
+	"go.mongodb.org/mongo-driver/bson"
 	"sync"
 	"time"
 
 	"github.com/qiniu/qmgo"
 )
 
-type managerStore struct {
+type db struct {
 	ctx        context.Context
 	session    *qmgo.Session
-	source     *qmgo.Database
+	database   *qmgo.Database
 	client     *qmgo.Client
-	authDBName string
-	dbname     string
-	cname      string
+	authSource string
+	source     string
+	collection string
+}
+
+type managerStore struct {
+	sync.RWMutex
+	db      *db
+	ctx     context.Context
+	sid     string
+	expired int64
+	values  map[string]interface{}
 }
 
 type store struct {
 	sync.RWMutex
-	s       *managerStore
+	db      *db
 	ctx     context.Context
 	sid     string
 	expired int64
@@ -29,40 +40,133 @@ type store struct {
 
 // Data items stored in mongo
 type sessionItem struct {
-	SID       string    `bson:"sid"`
-	Value     string    `bson:"value"`
-	ExpiredAt time.Time `bson:"expired_at,omitempty"`
+	SID       string                 `bson:"sid"`
+	Value     map[string]interface{} `bson:"value"`
+	ExpiredAt time.Time              `bson:"expired_at,omitempty"`
 }
 
 // close - close mongo session
-func (ms *managerStore) close() {
-	err := ms.client.Close(ms.ctx)
+func (x *db) close() {
+	err := x.client.Close(x.ctx)
 	if err != nil {
 		return
 	}
 }
 
 // cloneSession - cloneSession to Database
-func (ms *managerStore) cloneSession() error {
+func (x *db) cloneSession() error {
 	var err error
-	ms.session, err = ms.client.Session()
+	x.session, err = x.client.Session()
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
 // c - collection
-func (ms *managerStore) c(clan string) *qmgo.Collection {
-	return ms.source.Collection(clan)
+func (x *db) c(clan string) *qmgo.Collection {
+	return x.database.Collection(clan)
 }
 
 // cHandler - collection handler
-func (ms *managerStore) cHandler(clan string, handler func(c *qmgo.Collection)) {
-	_, err := ms.client.Session()
+func (x *db) cHandler(clan string, handler func(c *qmgo.Collection)) {
+	_, err := x.client.Session()
 	if err != nil {
 		return
 	}
-	defer ms.session.EndSession(ms.ctx)
-	handler(ms.source.Collection(clan))
+	defer x.session.EndSession(x.ctx)
+	handler(x.database.Collection(clan))
+}
+
+// get -
+func (x *db) get(sid string) (value string, err error) {
+	var item sessionItem
+
+	x.cHandler(x.collection, func(c *qmgo.Collection) {
+		e := x.c(x.collection).Find(x.ctx, bson.M{"sid": sid}).One(&item)
+		if e != nil {
+			err = e
+			return
+		}
+		err = nil
+	})
+
+	if err != nil {
+		if err == qmgo.ErrNoSuchDocuments {
+			value = ""
+			err = errors.New("sid does not exist")
+			return
+		}
+		value = ""
+		return
+	} else if item.ExpiredAt.Before(time.Now().UTC()) {
+		value = ""
+		err = errors.New("sid expired")
+		return
+	}
+
+	marshal, err := jsonMarshal(item.Value)
+	if err != nil {
+		return "", err
+	}
+
+	value = string(marshal)
+	err = nil
+
+	return
+}
+
+// parseValue -
+func (x *db) parseValue(value string) (map[string]interface{}, error) {
+	var values map[string]interface{}
+
+	if len(value) > 0 {
+		err := jsonUnmarshal([]byte(value), &values)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return values, nil
+}
+
+// save -
+func (x *db) save(sid string, values map[string]interface{}, expired int64) (err error) {
+	x.cHandler(x.collection, func(c *qmgo.Collection) {
+		_, e := x.c(x.collection).Upsert(x.ctx, bson.M{"sid": sid}, sessionItem{
+			SID:       sid,
+			Value:     values,
+			ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
+		})
+		if e != nil {
+			err = e
+			return
+		}
+		err = nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// delete -
+func (x *db) delete(sid string) (err error) {
+	x.cHandler(x.collection, func(c *qmgo.Collection) {
+		e := x.c(x.collection).Remove(x.ctx, bson.M{"sid": sid})
+		if e != nil {
+			err = e
+			return
+		}
+		err = nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
