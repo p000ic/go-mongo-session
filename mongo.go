@@ -3,14 +3,11 @@
 ***REMOVED***
 ***REMOVED***
 	"encoding/json"
-	"log"
-	"time"
-
 	"github.com/go-session/session/v3"
 	"github.com/qiniu/qmgo"
 	"github.com/qiniu/qmgo/options"
-	"go.mongodb.org/mongo-driver/bson"
 	mongoOpts "go.mongodb.org/mongo-driver/mongo/options"
+	"sync"
 ***REMOVED***
 
 var (
@@ -33,78 +30,52 @@ func NewStore(cfg *Config***REMOVED*** session.ManagerStore {
 			AuthSource:    cfg.AuthSource,
 		***REMOVED***
 	***REMOVED***
-	var m managerStore
+	var m db
 	m.ctx = ctx
 	m.client, err = qmgo.NewClient(ctx, &dbConfig***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil
 	***REMOVED***
-	m.dbname = cfg.Source
-	m.cname = cfg.Collection
-	m.authDBName = cfg.AuthSource
-	m.source = m.client.Database(cfg.Source***REMOVED***
+	m.source = cfg.Source
+	m.collection = cfg.Collection
+	m.authSource = cfg.AuthSource
+	m.database = m.client.Database(cfg.Source***REMOVED***
 	mgrStore := newManagerStore(&m, cfg***REMOVED***
 	return mgrStore
 ***REMOVED***
 
 // NewStoreWithSession Create an instance of a mongo store
-func NewStoreWithSession(m *managerStore, cfg *Config***REMOVED*** session.ManagerStore {
+func NewStoreWithSession(m *db, cfg *Config***REMOVED*** session.ManagerStore {
 	return newManagerStore(m, cfg***REMOVED***
 ***REMOVED***
 
-func newManagerStore(m *managerStore, cfg *Config***REMOVED*** *managerStore {
-	err := m.cloneSession(***REMOVED***
+func newManagerStore(db *db, cfg *Config***REMOVED*** *managerStore {
+	err := db.cloneSession(***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil
 	***REMOVED***
 	t := true
 	i := int32(60***REMOVED***
-	_ = m.c(cfg.Collection***REMOVED***.CreateIndexes(m.ctx, []options.IndexModel{{
+	_ = db.c(cfg.Collection***REMOVED***.CreateIndexes(db.ctx, []options.IndexModel{{
 		Key:          []string{"expired_at"***REMOVED***,
 		IndexOptions: &mongoOpts.IndexOptions{ExpireAfterSeconds: &i***REMOVED******REMOVED***,
 	***REMOVED******REMOVED***
-	_ = m.c(cfg.Collection***REMOVED***.CreateIndexes(m.ctx, []options.IndexModel{{
+	_ = db.c(cfg.Collection***REMOVED***.CreateIndexes(db.ctx, []options.IndexModel{{
 		Key:          []string{"sid"***REMOVED***,
 		IndexOptions: &mongoOpts.IndexOptions{Unique: &t***REMOVED******REMOVED***,
 	***REMOVED******REMOVED***
-	return m
-***REMOVED***
-
-func (ms *managerStore***REMOVED*** getValue(sid string***REMOVED*** (value string, err error***REMOVED*** {
-	var item sessionItem
-	err = ms.c(ms.cname***REMOVED***.Find(ms.ctx, sessionItem{SID: sid***REMOVED******REMOVED***.One(item***REMOVED***
-***REMOVED***
-		if err == qmgo.ErrNoSuchDocuments {
-			value = ""
-			err = nil
+	return &managerStore{
+		db:      db,
+		ctx:     context.Background(***REMOVED***,
+		sid:     "",
+		expired: 0,
+		values:  nil,
+		RWMutex: sync.RWMutex{***REMOVED***,
 	***REMOVED***
-		***REMOVED***
-		value = ""
-***REMOVED***
-	***REMOVED*** else if item.ExpiredAt.Before(time.Now(***REMOVED***.UTC(***REMOVED******REMOVED*** {
-		value = ""
-		err = nil
-***REMOVED***
-	***REMOVED***
-	value = item.Value
-	err = nil
-	return
-***REMOVED***
-
-func (ms *managerStore***REMOVED*** parseValue(value string***REMOVED*** (map[string]interface{***REMOVED***, error***REMOVED*** {
-	var values map[string]interface{***REMOVED***
-	if len(value***REMOVED*** > 0 {
-		err := jsonUnmarshal([]byte(value***REMOVED***, &values***REMOVED***
-	***REMOVED***
-	***REMOVED*** nil, err
-		***REMOVED***
-	***REMOVED***
-
-	return values, nil
 ***REMOVED***
 
 func (ms *managerStore***REMOVED*** Check(_ context.Context, sid string***REMOVED*** (bool, error***REMOVED*** {
-	val, err := ms.getValue(sid***REMOVED***
+	val, err := ms.db.get(sid***REMOVED***
 ***REMOVED***
 ***REMOVED*** false, err
 	***REMOVED***
@@ -112,46 +83,39 @@ func (ms *managerStore***REMOVED*** Check(_ context.Context, sid string***REMOVE
 ***REMOVED***
 
 func (ms *managerStore***REMOVED*** Create(ctx context.Context, sid string, expired int64***REMOVED*** (session.Store, error***REMOVED*** {
-	return newStore(ctx, ms, sid, expired, nil***REMOVED***, nil
+	return newStore(ctx, ms.db, sid, expired, nil***REMOVED***, nil
 ***REMOVED***
 
 func (ms *managerStore***REMOVED*** Update(ctx context.Context, sid string, expired int64***REMOVED*** (session.Store, error***REMOVED*** {
-	err := ms.cloneSession(***REMOVED***
+	value, err := ms.db.get(sid***REMOVED***
 ***REMOVED***
+		// log.Printf("get::%s::%s", err, sid***REMOVED***
+***REMOVED*** nil, err
+	***REMOVED*** else if len(value***REMOVED*** == 0 {
+***REMOVED*** newStore(ctx, ms.db, sid, expired, nil***REMOVED***, nil
+	***REMOVED***
+
+	values, err := ms.db.parseValue(value***REMOVED***
+***REMOVED***
+		// log.Printf("parse-value::%s::%s", err, sid***REMOVED***
 ***REMOVED*** nil, err
 	***REMOVED***
 
-	value, err := ms.getValue(sid***REMOVED***
+	err = ms.db.save(sid, values, expired***REMOVED***
 ***REMOVED***
-***REMOVED*** nil, err
-	***REMOVED*** else if value == "" {
-		log.Printf("%s", value***REMOVED***
-***REMOVED*** newStore(ctx, ms, sid, expired, nil***REMOVED***, nil
-	***REMOVED***
-
-	err = ms.c(ms.cname***REMOVED***.UpdateOne(ms.ctx, sessionItem{SID: sid***REMOVED***, bson.M{
-		"$set": sessionItem{
-			ExpiredAt: time.Now(***REMOVED***.UTC(***REMOVED***.Add(time.Duration(expired***REMOVED*** * time.Second***REMOVED***,
-		***REMOVED***,
-	***REMOVED******REMOVED***
-***REMOVED***
+		// log.Printf("save::%s::%s", err, sid***REMOVED***
 ***REMOVED*** nil, err
 	***REMOVED***
 
-	values, err := ms.parseValue(value***REMOVED***
-***REMOVED***
-***REMOVED*** nil, err
-	***REMOVED***
-	log.Printf("%+v", values***REMOVED***
-	return newStore(ctx, ms, sid, expired, values***REMOVED***, nil
+	return newStore(ctx, ms.db, sid, expired, values***REMOVED***, nil
 ***REMOVED***
 
 func (ms *managerStore***REMOVED*** Delete(_ context.Context, sid string***REMOVED*** error {
-	err := ms.cloneSession(***REMOVED***
+	err := ms.db.cloneSession(***REMOVED***
 ***REMOVED***
 ***REMOVED*** err
 	***REMOVED***
-	err = ms.c(ms.cname***REMOVED***.Remove(ms.ctx, sessionItem{SID: sid***REMOVED******REMOVED***
+	err = ms.db.delete(sid***REMOVED***
 ***REMOVED***
 		if err == qmgo.ErrNoSuchDocuments {
 			err = nil
@@ -162,50 +126,42 @@ func (ms *managerStore***REMOVED*** Delete(_ context.Context, sid string***REMOV
 	return nil
 ***REMOVED***
 
-func (ms *managerStore***REMOVED*** Refresh(ctx context.Context, oldsid, sid string, expired int64***REMOVED*** (session.Store, error***REMOVED*** {
-	value, err := ms.getValue(oldsid***REMOVED***
+func (ms *managerStore***REMOVED*** Refresh(ctx context.Context, oldSid, sid string, expired int64***REMOVED*** (session.Store, error***REMOVED*** {
+	value, err := ms.db.get(oldSid***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil, err
 	***REMOVED*** else if value == "" {
-***REMOVED*** newStore(ctx, ms, sid, expired, nil***REMOVED***, nil
+***REMOVED*** newStore(ctx, ms.db, sid, expired, nil***REMOVED***, nil
 	***REMOVED***
 
-	err = ms.cloneSession(***REMOVED***
-***REMOVED***
-***REMOVED*** nil, err
-	***REMOVED***
-	_, err = ms.c(ms.cname***REMOVED***.InsertOne(ms.ctx, sessionItem{
-		SID:       sid,
-		Value:     value,
-		ExpiredAt: time.Now(***REMOVED***.UTC(***REMOVED***.Add(time.Duration(expired***REMOVED*** * time.Second***REMOVED***,
-	***REMOVED******REMOVED***
-***REMOVED***
-***REMOVED*** nil, err
-	***REMOVED***
-	err = ms.c(ms.cname***REMOVED***.Remove(ms.ctx, sessionItem{SID: oldsid***REMOVED******REMOVED***
+	values, err := ms.db.parseValue(value***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil, err
 	***REMOVED***
 
-	values, err := ms.parseValue(value***REMOVED***
+	err = ms.db.save(sid, values, expired***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil, err
 	***REMOVED***
 
-	return newStore(ctx, ms, sid, expired, values***REMOVED***, nil
+***REMOVED***
+***REMOVED*** nil, err
+	***REMOVED***
+
+	return newStore(ctx, ms.db, sid, expired, values***REMOVED***, nil
 ***REMOVED***
 
 func (ms *managerStore***REMOVED*** Close(***REMOVED*** error {
-	ms.close(***REMOVED***
+	ms.db.close(***REMOVED***
 	return nil
 ***REMOVED***
 
-func newStore(ctx context.Context, s *managerStore, sid string, expired int64, values map[string]interface{***REMOVED******REMOVED*** *store {
+func newStore(ctx context.Context, db *db, sid string, expired int64, values map[string]interface{***REMOVED******REMOVED*** *store {
 	if values == nil {
 		values = make(map[string]interface{***REMOVED******REMOVED***
 	***REMOVED***
 	return &store{
-		s:       s,
+		db:      db,
 		ctx:     ctx,
 		sid:     sid,
 		expired: expired,
@@ -221,32 +177,35 @@ func (s *store***REMOVED*** SessionID(***REMOVED*** string {
 	return s.sid
 ***REMOVED***
 
-func (s *store***REMOVED*** Set(key string, value interface{***REMOVED******REMOVED*** {
-	s.Lock(***REMOVED***
-	s.values[key] = value
-	s.Unlock(***REMOVED***
-***REMOVED***
-
 func (s *store***REMOVED*** Get(key string***REMOVED*** (interface{***REMOVED***, bool***REMOVED*** {
-	s.RLock(***REMOVED***
-	v, err := s.s.getValue(s.sid***REMOVED***
+	s.Lock(***REMOVED***
+	defer s.Unlock(***REMOVED***
+	value, err := s.db.get(s.sid***REMOVED***
 ***REMOVED***
+		// log.Printf("get::%s::%s", err, s.sid***REMOVED***
 ***REMOVED*** nil, false
 	***REMOVED***
-	log.Printf("%s::%s::%s", v, s.sid, key***REMOVED***
-	val, ok := s.values[key]
-	s.RUnlock(***REMOVED***
+	values, err := s.db.parseValue(value***REMOVED***
+***REMOVED***
+		// log.Printf("parse-value::%s::%s", err, s.sid***REMOVED***
+***REMOVED*** nil, false
+	***REMOVED***
+	val, ok := values[key]
 	return val, ok
 ***REMOVED***
 
+func (s *store***REMOVED*** Set(key string, value interface{***REMOVED******REMOVED*** {
+	s.Lock(***REMOVED***
+	defer s.Unlock(***REMOVED***
+	s.values[key] = value
+***REMOVED***
+
 func (s *store***REMOVED*** Delete(key string***REMOVED*** interface{***REMOVED*** {
-	s.RLock(***REMOVED***
+	s.Lock(***REMOVED***
+	defer s.Unlock(***REMOVED***
 	v, ok := s.values[key]
-	s.RUnlock(***REMOVED***
 	if ok {
-		s.Lock(***REMOVED***
 		delete(s.values, key***REMOVED***
-		s.Unlock(***REMOVED***
 	***REMOVED***
 	return v
 ***REMOVED***
@@ -254,31 +213,14 @@ func (s *store***REMOVED*** Delete(key string***REMOVED*** interface{***REMOVED*
 func (s *store***REMOVED*** Flush(***REMOVED*** error {
 	s.Lock(***REMOVED***
 	s.values = make(map[string]interface{***REMOVED******REMOVED***
-	err := s.s.c(s.s.cname***REMOVED***.Remove(s.ctx, bson.M{"sid": s.sid***REMOVED******REMOVED***
-***REMOVED***
-***REMOVED*** err
-	***REMOVED***
 	s.Unlock(***REMOVED***
-	return nil
+	return s.Save(***REMOVED***
 ***REMOVED***
 
 func (s *store***REMOVED*** Save(***REMOVED*** error {
-	var value string
-	s.RLock(***REMOVED***
-	if len(s.values***REMOVED*** > 0 {
-		buf, err := jsonMarshal(s.values***REMOVED***
-	***REMOVED***
-			s.RUnlock(***REMOVED***
-	***REMOVED*** err
-		***REMOVED***
-		value = string(buf***REMOVED***
-	***REMOVED***
-	s.RUnlock(***REMOVED***
-	_, err := s.s.c(s.s.cname***REMOVED***.Upsert(s.ctx, sessionItem{SID: s.sid***REMOVED***, sessionItem{
-		SID:       s.sid,
-		Value:     value,
-		ExpiredAt: time.Now(***REMOVED***.UTC(***REMOVED***.Add(time.Duration(s.expired***REMOVED*** * time.Second***REMOVED***,
-	***REMOVED******REMOVED***
+	s.Lock(***REMOVED***
+	defer s.Unlock(***REMOVED***
+	err := s.db.save(s.sid, s.values, s.expired***REMOVED***
 ***REMOVED***
 ***REMOVED*** err
 	***REMOVED***

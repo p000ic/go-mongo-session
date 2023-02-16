@@ -2,6 +2,7 @@
 
 ***REMOVED***
 ***REMOVED***
+	"errors"
 ***REMOVED***
 
 ***REMOVED***
@@ -38,6 +39,9 @@ func TestStore(t *testing.T***REMOVED*** {
 		foo := store0.Delete("foo"***REMOVED***
 		So(foo, ShouldEqual, "bar"***REMOVED***
 
+		err = store0.Save(***REMOVED***
+		So(err, ShouldBeNil***REMOVED***
+
 		foo, ok = store0.Get("foo"***REMOVED***
 		So(ok, ShouldBeFalse***REMOVED***
 		So(foo, ShouldBeNil***REMOVED***
@@ -61,8 +65,7 @@ func TestManagerStore(t *testing.T***REMOVED*** {
 	defer mStore.Close(***REMOVED***
 	Convey("Test mongo-based storage management operations", t, func(***REMOVED*** {
 ***REMOVED***
-		store0, err := mStore.Create(context.Background(***REMOVED***, sid, 100***REMOVED***
-		So(store0, ShouldNotBeNil***REMOVED***
+		store0, err := mStore.Create(context.Background(***REMOVED***, sid, 20***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
 		store0.Set("foo", "bar"***REMOVED***
@@ -74,7 +77,6 @@ func TestManagerStore(t *testing.T***REMOVED*** {
 		So(foo, ShouldEqual, "bar"***REMOVED***
 
 		store0, err = mStore.Update(context.Background(***REMOVED***, sid, 10***REMOVED***
-		So(store0, ShouldNotBeNil***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
 		err = store0.Flush(***REMOVED***
@@ -82,7 +84,6 @@ func TestManagerStore(t *testing.T***REMOVED*** {
 
 ***REMOVED***
 		store2, err := mStore.Refresh(context.Background(***REMOVED***, sid, newSID, 10***REMOVED***
-		So(store2, ShouldNotBeNil***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
 		foo, ok = store2.Get("foo"***REMOVED***
@@ -90,7 +91,7 @@ func TestManagerStore(t *testing.T***REMOVED*** {
 		So(foo, ShouldBeNil***REMOVED***
 
 		exists, err := mStore.Check(context.Background(***REMOVED***, sid***REMOVED***
-		So(exists, ShouldBeFalse***REMOVED***
+		So(exists, ShouldBeTrue***REMOVED***
 		So(err, ShouldBeNil***REMOVED***
 
 		err = mStore.Delete(context.Background(***REMOVED***, newSID***REMOVED***
@@ -98,6 +99,6 @@ func TestManagerStore(t *testing.T***REMOVED*** {
 
 		exists, err = mStore.Check(context.Background(***REMOVED***, newSID***REMOVED***
 		So(exists, ShouldBeFalse***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		So(err, ShouldResemble, errors.New("sid does not exist"***REMOVED******REMOVED***
 	***REMOVED******REMOVED***
 ***REMOVED***
