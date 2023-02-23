@@ -95,14 +95,14 @@ func (x *db) get(sid string) (value string, err error) {
 	if err != nil {
 		if err == qmgo.ErrNoSuchDocuments {
 			value = ""
-			err = errors.New("sid does not exist")
+			err = errors.New("sid does not exist [" + sid + "]")
 			return
 		}
 		value = ""
 		return
 	} else if item.ExpiredAt.Before(time.Now().UTC()) {
 		value = ""
-		err = errors.New("sid expired")
+		err = errors.New("sid expired [" + sid + "]")
 		return
 	}
 
