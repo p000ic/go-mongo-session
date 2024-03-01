@@ -3,9 +3,10 @@ package mongo
 import (
 	"context"
 	"errors"
-	"go.mongodb.org/mongo-driver/bson"
 	"sync"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/qiniu/qmgo"
 )
@@ -54,14 +55,17 @@ func (x *db) close() {
 }
 
 // cloneSession - cloneSession to Database
-func (x *db) cloneSession() error {
-	var err error
+func (x *db) cloneSession() (err error) {
 	x.session, err = x.client.Session()
 	if err != nil {
 		return err
 	}
-
 	return nil
+}
+
+// endSession - endSession
+func (x *db) endSession() {
+	x.session.EndSession(x.ctx)
 }
 
 // c - collection
