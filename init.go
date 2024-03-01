@@ -3,9 +3,10 @@
 ***REMOVED***
 ***REMOVED***
 	"errors"
-	"go.mongodb.org/mongo-driver/bson"
 	"sync"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/qiniu/qmgo"
 ***REMOVED***
@@ -54,14 +55,17 @@ func (x *db***REMOVED*** close(***REMOVED*** {
 ***REMOVED***
 
 // cloneSession - cloneSession to Database
-func (x *db***REMOVED*** cloneSession(***REMOVED*** error {
-	var err error
+func (x *db***REMOVED*** cloneSession(***REMOVED*** (err error***REMOVED*** {
 	x.session, err = x.client.Session(***REMOVED***
 ***REMOVED***
 ***REMOVED*** err
 	***REMOVED***
-
 	return nil
+***REMOVED***
+
+// endSession - endSession
+func (x *db***REMOVED*** endSession(***REMOVED*** {
+	x.session.EndSession(x.ctx***REMOVED***
 ***REMOVED***
 
 // c - collection

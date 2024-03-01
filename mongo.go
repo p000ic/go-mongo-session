@@ -3,11 +3,12 @@
 ***REMOVED***
 ***REMOVED***
 	"encoding/json"
+	"sync"
+
 	"github.com/go-session/session/v3"
 	"github.com/qiniu/qmgo"
 	"github.com/qiniu/qmgo/options"
 	mongoOpts "go.mongodb.org/mongo-driver/mongo/options"
-	"sync"
 ***REMOVED***
 
 var (
@@ -30,9 +31,12 @@ func NewStore(cfg *Config***REMOVED*** session.ManagerStore {
 			AuthSource:    cfg.AuthSource,
 		***REMOVED***
 	***REMOVED***
+	opts := options.ClientOptions{
+		ClientOptions: cfg.ClientOptions,
+	***REMOVED***
 	var m db
 	m.ctx = ctx
-	m.client, err = qmgo.NewClient(ctx, &dbConfig***REMOVED***
+	m.client, err = qmgo.NewClient(ctx, &dbConfig, opts***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil
 	***REMOVED***
@@ -44,16 +48,12 @@ func NewStore(cfg *Config***REMOVED*** session.ManagerStore {
 	return mgrStore
 ***REMOVED***
 
-// NewStoreWithSession Create an instance of a mongo store
-func NewStoreWithSession(m *db, cfg *Config***REMOVED*** session.ManagerStore {
-	return newManagerStore(m, cfg***REMOVED***
-***REMOVED***
-
 func newManagerStore(db *db, cfg *Config***REMOVED*** *managerStore {
 	err := db.cloneSession(***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil
 	***REMOVED***
+	defer db.endSession(***REMOVED***
 	t := true
 	i := int32(60***REMOVED***
 	_ = db.c(cfg.Collection***REMOVED***.CreateIndexes(db.ctx, []options.IndexModel{{
