@@ -15,7 +15,7 @@ type db struct {
 	ctx        context.Context
 	session    *qmgo.Session
 	database   *qmgo.Database
-	client     *qmgo.Client
+	client     *qmgo.QmgoClient
 	authSource string
 	source     string
 	collection string
@@ -86,18 +86,19 @@ func (x *db***REMOVED*** cHandler(clan string, handler func(c *qmgo.Collection**
 // get -
 func (x *db***REMOVED*** get(sid string***REMOVED*** (value string, err error***REMOVED*** {
 	var item sessionItem
-
-	x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
-		e := x.c(x.collection***REMOVED***.Find(x.ctx, bson.M{"sid": sid***REMOVED******REMOVED***.One(&item***REMOVED***
-		if e != nil {
-			err = e
-	***REMOVED***
-		***REMOVED***
-		err = nil
-	***REMOVED******REMOVED***
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second***REMOVED***
+	defer cancel(***REMOVED***
+	// x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
+	err = x.client.Find(_ctx, bson.M{"sid": sid***REMOVED******REMOVED***.One(&item***REMOVED***
+	//   if e != nil {
+	//     err = e
+	//     return
+	//   ***REMOVED***
+	//   err = nil
+	// ***REMOVED******REMOVED***
 
 ***REMOVED***
-		if err == qmgo.ErrNoSuchDocuments {
+		if errors.Is(err, qmgo.ErrNoSuchDocuments***REMOVED*** {
 			value = ""
 			err = errors.New("sid does not exist [" + sid + "]"***REMOVED***
 	***REMOVED***
@@ -137,18 +138,20 @@ func (x *db***REMOVED*** parseValue(value string***REMOVED*** (map[string]interf
 
 // save -
 func (x *db***REMOVED*** save(sid string, values map[string]interface{***REMOVED***, expired int64***REMOVED*** (err error***REMOVED*** {
-	x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
-		_, e := x.c(x.collection***REMOVED***.Upsert(x.ctx, bson.M{"sid": sid***REMOVED***, sessionItem{
-			SID:       sid,
-			Value:     values,
-			ExpiredAt: time.Now(***REMOVED***.UTC(***REMOVED***.Add(time.Duration(expired***REMOVED*** * time.Second***REMOVED***,
-		***REMOVED******REMOVED***
-		if e != nil {
-			err = e
-	***REMOVED***
-		***REMOVED***
-		err = nil
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second***REMOVED***
+	defer cancel(***REMOVED***
+	// x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
+	_, err = x.client.Upsert(_ctx, bson.M{"sid": sid***REMOVED***, sessionItem{
+		SID:       sid,
+		Value:     values,
+		ExpiredAt: time.Now(***REMOVED***.UTC(***REMOVED***.Add(time.Duration(expired***REMOVED*** * time.Second***REMOVED***,
 	***REMOVED******REMOVED***
+	//   if e != nil {
+	//     err = e
+	//     return
+	//   ***REMOVED***
+	//   err = nil
+	// ***REMOVED******REMOVED***
 
 ***REMOVED***
 ***REMOVED*** err
@@ -159,14 +162,16 @@ func (x *db***REMOVED*** save(sid string, values map[string]interface{***REMOVED
 
 // delete -
 func (x *db***REMOVED*** delete(sid string***REMOVED*** (err error***REMOVED*** {
-	x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
-		e := x.c(x.collection***REMOVED***.Remove(x.ctx, bson.M{"sid": sid***REMOVED******REMOVED***
-		if e != nil {
-			err = e
-	***REMOVED***
-		***REMOVED***
-		err = nil
-	***REMOVED******REMOVED***
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second***REMOVED***
+	defer cancel(***REMOVED***
+	// x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
+	err = x.client.Remove(_ctx, bson.M{"sid": sid***REMOVED******REMOVED***
+	//   if e != nil {
+	//     err = e
+	//     return
+	//   ***REMOVED***
+	//   err = nil
+	// ***REMOVED******REMOVED***
 
 ***REMOVED***
 ***REMOVED*** err

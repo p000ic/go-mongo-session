@@ -3,6 +3,7 @@
 ***REMOVED***
 ***REMOVED***
 	"encoding/json"
+	"errors"
 	"sync"
 
 	"github.com/go-session/session/v3"
@@ -22,7 +23,11 @@ var (
 func NewStore(cfg *Config***REMOVED*** session.ManagerStore {
 	var err error
 	ctx := context.Background(***REMOVED***
-	dbConfig := qmgo.Config{Uri: cfg.URL***REMOVED***
+	dbConfig := qmgo.Config{
+		Uri:      cfg.URL,
+		Database: cfg.Source,
+		Coll:     cfg.Collection,
+	***REMOVED***
 	if cfg.Auth {
 		dbConfig.Auth = &qmgo.Credential{
 			AuthMechanism: cfg.AuthMechanism,
@@ -36,19 +41,16 @@ func NewStore(cfg *Config***REMOVED*** session.ManagerStore {
 	***REMOVED***
 	var m db
 	m.ctx = ctx
-	m.client, err = qmgo.NewClient(ctx, &dbConfig, opts***REMOVED***
+	m.client, err = qmgo.Open(ctx, &dbConfig, opts***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil
 	***REMOVED***
-	m.source = cfg.Source
-	m.collection = cfg.Collection
 	m.authSource = cfg.AuthSource
-	m.database = m.client.Database(cfg.Source***REMOVED***
-	mgrStore := newManagerStore(&m, cfg***REMOVED***
+	mgrStore := newManagerStore(&m***REMOVED***
 	return mgrStore
 ***REMOVED***
 
-func newManagerStore(db *db, cfg *Config***REMOVED*** *managerStore {
+func newManagerStore(db *db***REMOVED*** *managerStore {
 	err := db.cloneSession(***REMOVED***
 ***REMOVED***
 ***REMOVED*** nil
@@ -56,11 +58,11 @@ func newManagerStore(db *db, cfg *Config***REMOVED*** *managerStore {
 	defer db.endSession(***REMOVED***
 	t := true
 	i := int32(60***REMOVED***
-	_ = db.c(cfg.Collection***REMOVED***.CreateIndexes(db.ctx, []options.IndexModel{{
+	_ = db.client.CreateIndexes(db.ctx, []options.IndexModel{{
 		Key:          []string{"expired_at"***REMOVED***,
 		IndexOptions: &mongoOpts.IndexOptions{ExpireAfterSeconds: &i***REMOVED******REMOVED***,
 	***REMOVED******REMOVED***
-	_ = db.c(cfg.Collection***REMOVED***.CreateIndexes(db.ctx, []options.IndexModel{{
+	_ = db.client.CreateIndexes(db.ctx, []options.IndexModel{{
 		Key:          []string{"sid"***REMOVED***,
 		IndexOptions: &mongoOpts.IndexOptions{Unique: &t***REMOVED******REMOVED***,
 	***REMOVED******REMOVED***
@@ -117,7 +119,7 @@ func (ms *managerStore***REMOVED*** Delete(_ context.Context, sid string***REMOV
 	***REMOVED***
 	err = ms.db.delete(sid***REMOVED***
 ***REMOVED***
-		if err == qmgo.ErrNoSuchDocuments {
+		if errors.Is(err, qmgo.ErrNoSuchDocuments***REMOVED*** {
 			err = nil
 	***REMOVED*** err
 		***REMOVED***

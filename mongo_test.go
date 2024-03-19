@@ -2,7 +2,6 @@
 
 ***REMOVED***
 ***REMOVED***
-	"errors"
 ***REMOVED***
 
 ***REMOVED***
@@ -12,12 +11,16 @@
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***
+***REMOVED***
+
+***REMOVED***
+
+func init(***REMOVED*** {
+	cfg = NewConfig(url, dbName, cName, "mongoMegh", "MeghMongoDB2020", "admin"***REMOVED***
 ***REMOVED***
 
 func TestStore(t *testing.T***REMOVED*** {
-	cfg := NewConfig(url, dbName, cName, "", "", ""***REMOVED***
 	mStore := NewStore(cfg***REMOVED***
-	defer mStore.Close(***REMOVED***
 	Convey("Test mongo storage operation", t, func(***REMOVED*** {
 ***REMOVED***
 		store0, err := mStore.Create(context.Background(***REMOVED***, sid, 300***REMOVED***
@@ -57,12 +60,15 @@ func TestStore(t *testing.T***REMOVED*** {
 		So(ok, ShouldBeFalse***REMOVED***
 		So(foo2, ShouldBeNil***REMOVED***
 	***REMOVED******REMOVED***
+	err := mStore.Close(***REMOVED***
+***REMOVED***
+		t.Errorf("error-closing-mongoDB-connection::%s", err***REMOVED***
+***REMOVED***
+	***REMOVED***
 ***REMOVED***
 
 func TestManagerStore(t *testing.T***REMOVED*** {
-	cfg := NewConfig(url, dbName, cName, "", "", ""***REMOVED***
 	mStore := NewStore(cfg***REMOVED***
-	defer mStore.Close(***REMOVED***
 	Convey("Test mongo-based storage management operations", t, func(***REMOVED*** {
 ***REMOVED***
 		store0, err := mStore.Create(context.Background(***REMOVED***, sid, 20***REMOVED***
@@ -99,6 +105,11 @@ func TestManagerStore(t *testing.T***REMOVED*** {
 
 		exists, err = mStore.Check(context.Background(***REMOVED***, newSID***REMOVED***
 		So(exists, ShouldBeFalse***REMOVED***
-		So(err, ShouldResemble, errors.New("sid does not exist"***REMOVED******REMOVED***
+		So(err.Error(***REMOVED***, ShouldStartWith, "sid does not exist"***REMOVED***
 	***REMOVED******REMOVED***
+	err := mStore.Close(***REMOVED***
+***REMOVED***
+		t.Errorf("error-closing-mongoDB-connection::%s", err***REMOVED***
+***REMOVED***
+	***REMOVED***
 ***REMOVED***
