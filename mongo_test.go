@@ -2,7 +2,6 @@ package mongo
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -14,10 +13,14 @@ const (
 	cName  = "session"
 )
 
+var cfg *Config
+
+func init() {
+	cfg = NewConfig(url, dbName, cName, "mongoMegh", "MeghMongoDB2020", "admin")
+}
+
 func TestStore(t *testing.T) {
-	cfg := NewConfig(url, dbName, cName, "", "", "")
 	mStore := NewStore(cfg)
-	defer mStore.Close()
 	Convey("Test mongo storage operation", t, func() {
 		sid := "test_mongo_store0"
 		store0, err := mStore.Create(context.Background(), sid, 300)
@@ -57,12 +60,15 @@ func TestStore(t *testing.T) {
 		So(ok, ShouldBeFalse)
 		So(foo2, ShouldBeNil)
 	})
+	err := mStore.Close()
+	if err != nil {
+		t.Errorf("error-closing-mongoDB-connection::%s", err)
+		return
+	}
 }
 
 func TestManagerStore(t *testing.T) {
-	cfg := NewConfig(url, dbName, cName, "", "", "")
 	mStore := NewStore(cfg)
-	defer mStore.Close()
 	Convey("Test mongo-based storage management operations", t, func() {
 		sid := "test_manager_store1"
 		store0, err := mStore.Create(context.Background(), sid, 20)
@@ -99,6 +105,11 @@ func TestManagerStore(t *testing.T) {
 
 		exists, err = mStore.Check(context.Background(), newSID)
 		So(exists, ShouldBeFalse)
-		So(err, ShouldResemble, errors.New("sid does not exist"))
+		So(err.Error(), ShouldStartWith, "sid does not exist")
 	})
+	err := mStore.Close()
+	if err != nil {
+		t.Errorf("error-closing-mongoDB-connection::%s", err)
+		return
+	}
 }

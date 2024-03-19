@@ -15,7 +15,7 @@ type db struct {
 	ctx        context.Context
 	session    *qmgo.Session
 	database   *qmgo.Database
-	client     *qmgo.Client
+	client     *qmgo.QmgoClient
 	authSource string
 	source     string
 	collection string
@@ -86,18 +86,19 @@ func (x *db) cHandler(clan string, handler func(c *qmgo.Collection)) {
 // get -
 func (x *db) get(sid string) (value string, err error) {
 	var item sessionItem
-
-	x.cHandler(x.collection, func(c *qmgo.Collection) {
-		e := x.c(x.collection).Find(x.ctx, bson.M{"sid": sid}).One(&item)
-		if e != nil {
-			err = e
-			return
-		}
-		err = nil
-	})
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
+	defer cancel()
+	// x.cHandler(x.collection, func(c *qmgo.Collection) {
+	err = x.client.Find(_ctx, bson.M{"sid": sid}).One(&item)
+	//   if e != nil {
+	//     err = e
+	//     return
+	//   }
+	//   err = nil
+	// })
 
 	if err != nil {
-		if err == qmgo.ErrNoSuchDocuments {
+		if errors.Is(err, qmgo.ErrNoSuchDocuments) {
 			value = ""
 			err = errors.New("sid does not exist [" + sid + "]")
 			return
@@ -137,18 +138,20 @@ func (x *db) parseValue(value string) (map[string]interface{}, error) {
 
 // save -
 func (x *db) save(sid string, values map[string]interface{}, expired int64) (err error) {
-	x.cHandler(x.collection, func(c *qmgo.Collection) {
-		_, e := x.c(x.collection).Upsert(x.ctx, bson.M{"sid": sid}, sessionItem{
-			SID:       sid,
-			Value:     values,
-			ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
-		})
-		if e != nil {
-			err = e
-			return
-		}
-		err = nil
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
+	defer cancel()
+	// x.cHandler(x.collection, func(c *qmgo.Collection) {
+	_, err = x.client.Upsert(_ctx, bson.M{"sid": sid}, sessionItem{
+		SID:       sid,
+		Value:     values,
+		ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
 	})
+	//   if e != nil {
+	//     err = e
+	//     return
+	//   }
+	//   err = nil
+	// })
 
 	if err != nil {
 		return err
@@ -159,14 +162,16 @@ func (x *db) save(sid string, values map[string]interface{}, expired int64) (err
 
 // delete -
 func (x *db) delete(sid string) (err error) {
-	x.cHandler(x.collection, func(c *qmgo.Collection) {
-		e := x.c(x.collection).Remove(x.ctx, bson.M{"sid": sid})
-		if e != nil {
-			err = e
-			return
-		}
-		err = nil
-	})
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
+	defer cancel()
+	// x.cHandler(x.collection, func(c *qmgo.Collection) {
+	err = x.client.Remove(_ctx, bson.M{"sid": sid})
+	//   if e != nil {
+	//     err = e
+	//     return
+	//   }
+	//   err = nil
+	// })
 
 	if err != nil {
 		return err

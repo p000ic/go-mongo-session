@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 
 	"github.com/go-session/session/v3"
@@ -22,7 +23,11 @@ var (
 func NewStore(cfg *Config) session.ManagerStore {
 	var err error
 	ctx := context.Background()
-	dbConfig := qmgo.Config{Uri: cfg.URL}
+	dbConfig := qmgo.Config{
+		Uri:      cfg.URL,
+		Database: cfg.Source,
+		Coll:     cfg.Collection,
+	}
 	if cfg.Auth {
 		dbConfig.Auth = &qmgo.Credential{
 			AuthMechanism: cfg.AuthMechanism,
@@ -36,19 +41,16 @@ func NewStore(cfg *Config) session.ManagerStore {
 	}
 	var m db
 	m.ctx = ctx
-	m.client, err = qmgo.NewClient(ctx, &dbConfig, opts)
+	m.client, err = qmgo.Open(ctx, &dbConfig, opts)
 	if err != nil {
 		return nil
 	}
-	m.source = cfg.Source
-	m.collection = cfg.Collection
 	m.authSource = cfg.AuthSource
-	m.database = m.client.Database(cfg.Source)
-	mgrStore := newManagerStore(&m, cfg)
+	mgrStore := newManagerStore(&m)
 	return mgrStore
 }
 
-func newManagerStore(db *db, cfg *Config) *managerStore {
+func newManagerStore(db *db) *managerStore {
 	err := db.cloneSession()
 	if err != nil {
 		return nil
@@ -56,11 +58,11 @@ func newManagerStore(db *db, cfg *Config) *managerStore {
 	defer db.endSession()
 	t := true
 	i := int32(60)
-	_ = db.c(cfg.Collection).CreateIndexes(db.ctx, []options.IndexModel{{
+	_ = db.client.CreateIndexes(db.ctx, []options.IndexModel{{
 		Key:          []string{"expired_at"},
 		IndexOptions: &mongoOpts.IndexOptions{ExpireAfterSeconds: &i}},
 	})
-	_ = db.c(cfg.Collection).CreateIndexes(db.ctx, []options.IndexModel{{
+	_ = db.client.CreateIndexes(db.ctx, []options.IndexModel{{
 		Key:          []string{"sid"},
 		IndexOptions: &mongoOpts.IndexOptions{Unique: &t}},
 	})
@@ -117,7 +119,7 @@ func (ms *managerStore) Delete(_ context.Context, sid string) error {
 	}
 	err = ms.db.delete(sid)
 	if err != nil {
-		if err == qmgo.ErrNoSuchDocuments {
+		if errors.Is(err, qmgo.ErrNoSuchDocuments) {
 			err = nil
 			return err
 		}
