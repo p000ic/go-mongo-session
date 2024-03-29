@@ -1,7 +1,7 @@
-***REMOVED***
+package mongo
 
-***REMOVED***
-***REMOVED***
+import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -9,7 +9,7 @@
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/qiniu/qmgo"
-***REMOVED***
+)
 
 type db struct {
 	ctx        context.Context
@@ -19,7 +19,7 @@ type db struct {
 	authSource string
 	source     string
 	collection string
-***REMOVED***
+}
 
 type managerStore struct {
 	sync.RWMutex
@@ -27,8 +27,8 @@ type managerStore struct {
 	ctx     context.Context
 	sid     string
 	expired int64
-	values  map[string]interface{***REMOVED***
-***REMOVED***
+	values  map[string]interface{}
+}
 
 type store struct {
 	sync.RWMutex
@@ -36,146 +36,146 @@ type store struct {
 	ctx     context.Context
 	sid     string
 	expired int64
-	values  map[string]interface{***REMOVED***
-***REMOVED***
+	values  map[string]interface{}
+}
 
 // Data items stored in mongo
 type sessionItem struct {
 	SID       string                 `bson:"sid"`
-	Value     map[string]interface{***REMOVED*** `bson:"value"`
+	Value     map[string]interface{} `bson:"value"`
 	ExpiredAt time.Time              `bson:"expired_at,omitempty"`
-***REMOVED***
+}
 
 // close - close mongo session
-func (x *db***REMOVED*** close(***REMOVED*** {
-	err := x.client.Close(x.ctx***REMOVED***
-***REMOVED***
-***REMOVED***
-	***REMOVED***
-***REMOVED***
+func (x *db) close() {
+	err := x.client.Close(x.ctx)
+	if err != nil {
+		return
+	}
+}
 
 // cloneSession - cloneSession to Database
-func (x *db***REMOVED*** cloneSession(***REMOVED*** (err error***REMOVED*** {
-	x.session, err = x.client.Session(***REMOVED***
-***REMOVED***
-***REMOVED*** err
-	***REMOVED***
+func (x *db) cloneSession() (err error) {
+	x.session, err = x.client.Session()
+	if err != nil {
+		return err
+	}
 	return nil
-***REMOVED***
+}
 
 // endSession - endSession
-func (x *db***REMOVED*** endSession(***REMOVED*** {
-	x.session.EndSession(x.ctx***REMOVED***
-***REMOVED***
+func (x *db) endSession() {
+	x.session.EndSession(x.ctx)
+}
 
 // c - collection
-func (x *db***REMOVED*** c(clan string***REMOVED*** *qmgo.Collection {
-	return x.database.Collection(clan***REMOVED***
-***REMOVED***
+func (x *db) c(clan string) *qmgo.Collection {
+	return x.database.Collection(clan)
+}
 
 // cHandler - collection handler
-func (x *db***REMOVED*** cHandler(clan string, handler func(c *qmgo.Collection***REMOVED******REMOVED*** {
-	_, err := x.client.Session(***REMOVED***
-***REMOVED***
-***REMOVED***
-	***REMOVED***
-	defer x.session.EndSession(x.ctx***REMOVED***
-	handler(x.database.Collection(clan***REMOVED******REMOVED***
-***REMOVED***
+func (x *db) cHandler(clan string, handler func(c *qmgo.Collection)) {
+	_, err := x.client.Session()
+	if err != nil {
+		return
+	}
+	defer x.session.EndSession(x.ctx)
+	handler(x.database.Collection(clan))
+}
 
 // get -
-func (x *db***REMOVED*** get(sid string***REMOVED*** (value string, err error***REMOVED*** {
+func (x *db) get(sid string) (value string, err error) {
 	var item sessionItem
-	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second***REMOVED***
-	defer cancel(***REMOVED***
-	// x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
-	err = x.client.Find(_ctx, bson.M{"sid": sid***REMOVED******REMOVED***.One(&item***REMOVED***
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
+	defer cancel()
+	// x.cHandler(x.collection, func(c *qmgo.Collection) {
+	err = x.client.Find(_ctx, bson.M{"sid": sid}).One(&item)
 	//   if e != nil {
 	//     err = e
 	//     return
-	//   ***REMOVED***
+	//   }
 	//   err = nil
-	// ***REMOVED******REMOVED***
+	// })
 
-***REMOVED***
-		if errors.Is(err, qmgo.ErrNoSuchDocuments***REMOVED*** {
+	if err != nil {
+		if errors.Is(err, qmgo.ErrNoSuchDocuments) {
 			value = ""
-			err = errors.New("sid does not exist [" + sid + "]"***REMOVED***
-	***REMOVED***
-		***REMOVED***
+			err = errors.New("sid does not exist [" + sid + "]")
+			return
+		}
 		value = ""
-***REMOVED***
-	***REMOVED*** else if item.ExpiredAt.Before(time.Now(***REMOVED***.UTC(***REMOVED******REMOVED*** {
+		return
+	} else if item.ExpiredAt.Before(time.Now().UTC()) {
 		value = ""
-		err = errors.New("sid expired [" + sid + "]"***REMOVED***
-***REMOVED***
-	***REMOVED***
+		err = errors.New("sid expired [" + sid + "]")
+		return
+	}
 
-	marshal, err := jsonMarshal(item.Value***REMOVED***
-***REMOVED***
-***REMOVED*** "", err
-	***REMOVED***
+	marshal, err := jsonMarshal(item.Value)
+	if err != nil {
+		return "", err
+	}
 
-	value = string(marshal***REMOVED***
+	value = string(marshal)
 	err = nil
 
 	return
-***REMOVED***
+}
 
 // parseValue -
-func (x *db***REMOVED*** parseValue(value string***REMOVED*** (map[string]interface{***REMOVED***, error***REMOVED*** {
-	var values map[string]interface{***REMOVED***
+func (x *db) parseValue(value string) (map[string]interface{}, error) {
+	var values map[string]interface{}
 
-	if len(value***REMOVED*** > 0 {
-		err := jsonUnmarshal([]byte(value***REMOVED***, &values***REMOVED***
-	***REMOVED***
-	***REMOVED*** nil, err
-		***REMOVED***
-	***REMOVED***
+	if len(value) > 0 {
+		err := jsonUnmarshal([]byte(value), &values)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return values, nil
-***REMOVED***
+}
 
 // save -
-func (x *db***REMOVED*** save(sid string, values map[string]interface{***REMOVED***, expired int64***REMOVED*** (err error***REMOVED*** {
-	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second***REMOVED***
-	defer cancel(***REMOVED***
-	// x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
-	_, err = x.client.Upsert(_ctx, bson.M{"sid": sid***REMOVED***, sessionItem{
+func (x *db) save(sid string, values map[string]interface{}, expired int64) (err error) {
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
+	defer cancel()
+	// x.cHandler(x.collection, func(c *qmgo.Collection) {
+	_, err = x.client.Upsert(_ctx, bson.M{"sid": sid}, sessionItem{
 		SID:       sid,
 		Value:     values,
-		ExpiredAt: time.Now(***REMOVED***.UTC(***REMOVED***.Add(time.Duration(expired***REMOVED*** * time.Second***REMOVED***,
-	***REMOVED******REMOVED***
+		ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
+	})
 	//   if e != nil {
 	//     err = e
 	//     return
-	//   ***REMOVED***
+	//   }
 	//   err = nil
-	// ***REMOVED******REMOVED***
+	// })
 
-***REMOVED***
-***REMOVED*** err
-	***REMOVED***
+	if err != nil {
+		return err
+	}
 
 	return nil
-***REMOVED***
+}
 
 // delete -
-func (x *db***REMOVED*** delete(sid string***REMOVED*** (err error***REMOVED*** {
-	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second***REMOVED***
-	defer cancel(***REMOVED***
-	// x.cHandler(x.collection, func(c *qmgo.Collection***REMOVED*** {
-	err = x.client.Remove(_ctx, bson.M{"sid": sid***REMOVED******REMOVED***
+func (x *db) delete(sid string) (err error) {
+	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
+	defer cancel()
+	// x.cHandler(x.collection, func(c *qmgo.Collection) {
+	err = x.client.Remove(_ctx, bson.M{"sid": sid})
 	//   if e != nil {
 	//     err = e
 	//     return
-	//   ***REMOVED***
+	//   }
 	//   err = nil
-	// ***REMOVED******REMOVED***
+	// })
 
-***REMOVED***
-***REMOVED*** err
-	***REMOVED***
+	if err != nil {
+		return err
+	}
 
 	return nil
-***REMOVED***
+}

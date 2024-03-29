@@ -1,115 +1,115 @@
-***REMOVED***
+package mongo
 
-***REMOVED***
-***REMOVED***
-***REMOVED***
+import (
+	"context"
+	"testing"
 
-***REMOVED***
-***REMOVED***
+	. "github.com/smartystreets/goconvey/convey"
+)
 
-***REMOVED***
-***REMOVED***
-***REMOVED***
-***REMOVED***
-***REMOVED***
+const (
+	url    = "mongodb://127.0.0.1:27017"
+	dbName = "test"
+	cName  = "session"
+)
 
-***REMOVED***
+var cfg *Config
 
-func init(***REMOVED*** {
-	cfg = NewConfig(url, dbName, cName, "mongoMegh", "MeghMongoDB2020", "admin"***REMOVED***
-***REMOVED***
+func init() {
+	cfg = NewConfig(url, dbName, cName, "test", "test", "admin")
+}
 
-func TestStore(t *testing.T***REMOVED*** {
-	mStore := NewStore(cfg***REMOVED***
-	Convey("Test mongo storage operation", t, func(***REMOVED*** {
-***REMOVED***
-		store0, err := mStore.Create(context.Background(***REMOVED***, sid, 300***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+func TestStore(t *testing.T) {
+	mStore := NewStore(cfg)
+	Convey("Test mongo storage operation", t, func() {
+		sid := "test_mongo_store0"
+		store0, err := mStore.Create(context.Background(), sid, 300)
+		So(err, ShouldBeNil)
 
-		foo0, ok := store0.Get("foo"***REMOVED***
-		So(ok, ShouldBeFalse***REMOVED***
-		So(foo0, ShouldBeNil***REMOVED***
+		foo0, ok := store0.Get("foo")
+		So(ok, ShouldBeFalse)
+		So(foo0, ShouldBeNil)
 
-		store0.Set("foo", "bar"***REMOVED***
-		store0.Set("foo2", "bar2"***REMOVED***
-		err = store0.Save(***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		store0.Set("foo", "bar")
+		store0.Set("foo2", "bar2")
+		err = store0.Save()
+		So(err, ShouldBeNil)
 
-		foo1, ok := store0.Get("foo"***REMOVED***
-		So(ok, ShouldBeTrue***REMOVED***
-		So(foo1, ShouldEqual, "bar"***REMOVED***
+		foo1, ok := store0.Get("foo")
+		So(ok, ShouldBeTrue)
+		So(foo1, ShouldEqual, "bar")
 
-		foo := store0.Delete("foo"***REMOVED***
-		So(foo, ShouldEqual, "bar"***REMOVED***
+		foo := store0.Delete("foo")
+		So(foo, ShouldEqual, "bar")
 
-		err = store0.Save(***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		err = store0.Save()
+		So(err, ShouldBeNil)
 
-		foo, ok = store0.Get("foo"***REMOVED***
-		So(ok, ShouldBeFalse***REMOVED***
-		So(foo, ShouldBeNil***REMOVED***
+		foo, ok = store0.Get("foo")
+		So(ok, ShouldBeFalse)
+		So(foo, ShouldBeNil)
 
-		foo2, ok := store0.Get("foo2"***REMOVED***
-		So(ok, ShouldBeTrue***REMOVED***
-		So(foo2, ShouldEqual, "bar2"***REMOVED***
+		foo2, ok := store0.Get("foo2")
+		So(ok, ShouldBeTrue)
+		So(foo2, ShouldEqual, "bar2")
 
-		err = store0.Flush(***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		err = store0.Flush()
+		So(err, ShouldBeNil)
 
-		foo2, ok = store0.Get("foo2"***REMOVED***
-		So(ok, ShouldBeFalse***REMOVED***
-		So(foo2, ShouldBeNil***REMOVED***
-	***REMOVED******REMOVED***
-	err := mStore.Close(***REMOVED***
-***REMOVED***
-		t.Errorf("error-closing-mongoDB-connection::%s", err***REMOVED***
-***REMOVED***
-	***REMOVED***
-***REMOVED***
+		foo2, ok = store0.Get("foo2")
+		So(ok, ShouldBeFalse)
+		So(foo2, ShouldBeNil)
+	})
+	err := mStore.Close()
+	if err != nil {
+		t.Errorf("error-closing-mongoDB-connection::%s", err)
+		return
+	}
+}
 
-func TestManagerStore(t *testing.T***REMOVED*** {
-	mStore := NewStore(cfg***REMOVED***
-	Convey("Test mongo-based storage management operations", t, func(***REMOVED*** {
-***REMOVED***
-		store0, err := mStore.Create(context.Background(***REMOVED***, sid, 20***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+func TestManagerStore(t *testing.T) {
+	mStore := NewStore(cfg)
+	Convey("Test mongo-based storage management operations", t, func() {
+		sid := "test_manager_store1"
+		store0, err := mStore.Create(context.Background(), sid, 20)
+		So(err, ShouldBeNil)
 
-		store0.Set("foo", "bar"***REMOVED***
-		err = store0.Save(***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		store0.Set("foo", "bar")
+		err = store0.Save()
+		So(err, ShouldBeNil)
 
-		foo, ok := store0.Get("foo"***REMOVED***
-		So(ok, ShouldBeTrue***REMOVED***
-		So(foo, ShouldEqual, "bar"***REMOVED***
+		foo, ok := store0.Get("foo")
+		So(ok, ShouldBeTrue)
+		So(foo, ShouldEqual, "bar")
 
-		store0, err = mStore.Update(context.Background(***REMOVED***, sid, 10***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		store0, err = mStore.Update(context.Background(), sid, 10)
+		So(err, ShouldBeNil)
 
-		err = store0.Flush(***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		err = store0.Flush()
+		So(err, ShouldBeNil)
 
-***REMOVED***
-		store2, err := mStore.Refresh(context.Background(***REMOVED***, sid, newSID, 10***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		newSID := "test_manager_store2"
+		store2, err := mStore.Refresh(context.Background(), sid, newSID, 10)
+		So(err, ShouldBeNil)
 
-		foo, ok = store2.Get("foo"***REMOVED***
-		So(ok, ShouldBeFalse***REMOVED***
-		So(foo, ShouldBeNil***REMOVED***
+		foo, ok = store2.Get("foo")
+		So(ok, ShouldBeFalse)
+		So(foo, ShouldBeNil)
 
-		exists, err := mStore.Check(context.Background(***REMOVED***, sid***REMOVED***
-		So(exists, ShouldBeTrue***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		exists, err := mStore.Check(context.Background(), sid)
+		So(exists, ShouldBeTrue)
+		So(err, ShouldBeNil)
 
-		err = mStore.Delete(context.Background(***REMOVED***, newSID***REMOVED***
-		So(err, ShouldBeNil***REMOVED***
+		err = mStore.Delete(context.Background(), newSID)
+		So(err, ShouldBeNil)
 
-		exists, err = mStore.Check(context.Background(***REMOVED***, newSID***REMOVED***
-		So(exists, ShouldBeFalse***REMOVED***
-		So(err.Error(***REMOVED***, ShouldStartWith, "sid does not exist"***REMOVED***
-	***REMOVED******REMOVED***
-	err := mStore.Close(***REMOVED***
-***REMOVED***
-		t.Errorf("error-closing-mongoDB-connection::%s", err***REMOVED***
-***REMOVED***
-	***REMOVED***
-***REMOVED***
+		exists, err = mStore.Check(context.Background(), newSID)
+		So(exists, ShouldBeFalse)
+		So(err.Error(), ShouldStartWith, "sid does not exist")
+	})
+	err := mStore.Close()
+	if err != nil {
+		t.Errorf("error-closing-mongoDB-connection::%s", err)
+		return
+	}
+}

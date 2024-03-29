@@ -7,7 +7,7 @@ require (
 	github.com/qiniu/qmgo v1.1.8
 	github.com/smartystreets/goconvey v1.8.1
 	go.mongodb.org/mongo-driver v1.14.0
-***REMOVED***
+)
 
 require (
 	github.com/bytedance/gopkg v0.0.0-20221122125632-68358b8ecec6 // indirect
@@ -29,4 +29,4 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-***REMOVED***
+)

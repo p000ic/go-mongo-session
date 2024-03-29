@@ -1,1 +1,1 @@
-# MongoDB store for [Session](https://github.com/go-session/session***REMOVED***
+# MongoDB store for [Session](https://github.com/go-session/session)

@@ -1,10 +1,10 @@
-***REMOVED***
+package mongo
 
-***REMOVED***
+import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo/options"
-***REMOVED***
+)
 
 // Config mongodb configuration parameters
 type Config struct {
@@ -17,11 +17,11 @@ type Config struct {
 	AuthSource    string
 	Auth          bool
 	ClientOptions *options.ClientOptions
-***REMOVED***
+}
 
 // NewConfig create mongodb configuration
-func NewConfig(url, source, collection, username, password, authSource string***REMOVED*** *Config {
-	maxConnIdleTime := time.Duration(1000***REMOVED*** * time.Millisecond
+func NewConfig(url, source, collection, username, password, authSource string) *Config {
+	maxConnIdleTime := time.Duration(1000) * time.Millisecond
 	return &Config{
 		URL:           url,
 		Source:        source,
@@ -33,6 +33,6 @@ func NewConfig(url, source, collection, username, password, authSource string***
 		Auth:          true,
 		ClientOptions: &options.ClientOptions{
 			MaxConnIdleTime: &maxConnIdleTime,
-		***REMOVED***,
-	***REMOVED***
-***REMOVED***
+		},
+	}
+}
