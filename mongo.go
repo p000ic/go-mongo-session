@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/go-session/session/v3"
-	"github.com/qiniu/qmgo"
-	"github.com/qiniu/qmgo/options"
-	mongoOpts "go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/event"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	mongoOpts "go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 var (
@@ -17,55 +19,57 @@ var (
 	_             session.Store        = &store{}
 	jsonMarshal                        = json.Marshal
 	jsonUnmarshal                      = json.Unmarshal
+	minPoolSize                        = uint64(2)
+	maxPoolSize                        = uint64(50)
+	connTimeout                        = time.Second * 10  // 10 sec
+	maxIdleTime                        = time.Second * 300 // 5 min
 )
 
 // NewStore Create an instance of a mongo store
 func NewStore(cfg *Config) session.ManagerStore {
 	var err error
-	ctx := context.Background()
-	dbConfig := qmgo.Config{
-		Uri:      cfg.URL,
-		Database: cfg.Source,
-		Coll:     cfg.Collection,
-	}
+	var m db
+	m.ctx = context.Background()
+	opts := mongoOpts.Client()
+	opts.SetConnectTimeout(connTimeout)
+	opts.SetMaxConnIdleTime(maxIdleTime)
+	opts.SetMinPoolSize(minPoolSize)
+	opts.SetMaxPoolSize(maxPoolSize)
 	if cfg.Auth {
-		dbConfig.Auth = &qmgo.Credential{
+		opts.Auth = &mongoOpts.Credential{
 			AuthMechanism: cfg.AuthMechanism,
 			Username:      cfg.Username,
 			Password:      cfg.Password,
 			AuthSource:    cfg.AuthSource,
 		}
 	}
-	opts := options.ClientOptions{
-		ClientOptions: cfg.ClientOptions,
+	startedCommands := make(map[int64]bson.Raw)
+	cmdMonitor := &event.CommandMonitor{
+		Started: func(_ context.Context, evt *event.CommandStartedEvent) {
+			startedCommands[evt.RequestID] = evt.Command
+		},
+		Succeeded: func(_ context.Context, evt *event.CommandSucceededEvent) {
+			// log.Printf("cmd: %v success-resp: %v", startedCommands[evt.RequestID], evt.Reply)
+			delete(startedCommands, evt.RequestID)
+		},
+		Failed: func(_ context.Context, evt *event.CommandFailedEvent) {
+			// log.Printf("cmd: %v failure-resp: %v", startedCommands[evt.RequestID], evt.Failure)
+			delete(startedCommands, evt.RequestID)
+		},
 	}
-	var m db
-	m.ctx = ctx
-	m.client, err = qmgo.Open(ctx, &dbConfig, opts)
+	opts.ApplyURI(cfg.URL).SetMonitor(cmdMonitor)
+	m.client, err = mongo.Connect(opts)
 	if err != nil {
 		return nil
 	}
 	m.authSource = cfg.AuthSource
+	m.database = m.client.Database(cfg.Database)
+	m.collection = m.database.Collection(cfg.Collection)
 	mgrStore := newManagerStore(&m)
 	return mgrStore
 }
 
 func newManagerStore(db *db) *managerStore {
-	err := db.cloneSession()
-	if err != nil {
-		return nil
-	}
-	defer db.endSession()
-	t := true
-	i := int32(60)
-	_ = db.client.CreateIndexes(db.ctx, []options.IndexModel{{
-		Key:          []string{"expired_at"},
-		IndexOptions: &mongoOpts.IndexOptions{ExpireAfterSeconds: &i}},
-	})
-	_ = db.client.CreateIndexes(db.ctx, []options.IndexModel{{
-		Key:          []string{"sid"},
-		IndexOptions: &mongoOpts.IndexOptions{Unique: &t}},
-	})
 	return &managerStore{
 		db:      db,
 		ctx:     context.Background(),
@@ -113,13 +117,9 @@ func (ms *managerStore) Update(ctx context.Context, sid string, expired int64) (
 }
 
 func (ms *managerStore) Delete(_ context.Context, sid string) error {
-	err := ms.db.cloneSession()
+	err := ms.db.delete(sid)
 	if err != nil {
-		return err
-	}
-	err = ms.db.delete(sid)
-	if err != nil {
-		if errors.Is(err, qmgo.ErrNoSuchDocuments) {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			err = nil
 			return err
 		}
@@ -142,10 +142,6 @@ func (ms *managerStore) Refresh(ctx context.Context, oldSid, sid string, expired
 	}
 
 	err = ms.db.save(sid, values, expired)
-	if err != nil {
-		return nil, err
-	}
-
 	if err != nil {
 		return nil, err
 	}

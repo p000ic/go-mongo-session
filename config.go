@@ -3,13 +3,13 @@ package mongo
 import (
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Config mongodb configuration parameters
 type Config struct {
 	URL           string
-	Source        string
+	Database      string
 	Collection    string
 	AuthMechanism string
 	Username      string
@@ -20,11 +20,11 @@ type Config struct {
 }
 
 // NewConfig create mongodb configuration
-func NewConfig(url, source, collection, username, password, authSource string) *Config {
+func NewConfig(url, database, collection, username, password, authSource string) *Config {
 	maxConnIdleTime := time.Duration(1000) * time.Millisecond
 	return &Config{
 		URL:           url,
-		Source:        source,
+		Database:      database,
 		Collection:    collection,
 		AuthMechanism: "SCRAM-SHA-1",
 		Username:      username,

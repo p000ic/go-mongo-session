@@ -6,19 +6,18 @@ import (
 	"sync"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-
-	"github.com/qiniu/qmgo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type db struct {
 	ctx        context.Context
-	session    *qmgo.Session
-	database   *qmgo.Database
-	client     *qmgo.QmgoClient
 	authSource string
-	source     string
-	collection string
+	client     *mongo.Client
+	session    *mongo.Session
+	database   *mongo.Database
+	collection *mongo.Collection
 }
 
 type managerStore struct {
@@ -48,57 +47,42 @@ type sessionItem struct {
 
 // close - close mongo session
 func (x *db) close() {
-	err := x.client.Close(x.ctx)
+	err := x.client.Disconnect(x.ctx)
 	if err != nil {
 		return
 	}
+}
+
+// parseValue -
+func (x *db) parseValue(value string) (map[string]interface{}, error) {
+	var values map[string]interface{}
+	if len(value) > 0 {
+		err := jsonUnmarshal([]byte(value), &values)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
 }
 
 // cloneSession - cloneSession to Database
-func (x *db) cloneSession() (err error) {
-	x.session, err = x.client.Session()
+func (x *db) cloneSession() (s *mongo.Session, err error) {
+	s, err = x.client.StartSession()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
-}
-
-// endSession - endSession
-func (x *db) endSession() {
-	x.session.EndSession(x.ctx)
-}
-
-// c - collection
-func (x *db) c(clan string) *qmgo.Collection {
-	return x.database.Collection(clan)
-}
-
-// cHandler - collection handler
-func (x *db) cHandler(clan string, handler func(c *qmgo.Collection)) {
-	_, err := x.client.Session()
-	if err != nil {
-		return
-	}
-	defer x.session.EndSession(x.ctx)
-	handler(x.database.Collection(clan))
+	return
 }
 
 // get -
 func (x *db) get(sid string) (value string, err error) {
+	// TODO: Implement session txn logic
 	var item sessionItem
 	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
 	defer cancel()
-	// x.cHandler(x.collection, func(c *qmgo.Collection) {
-	err = x.client.Find(_ctx, bson.M{"sid": sid}).One(&item)
-	//   if e != nil {
-	//     err = e
-	//     return
-	//   }
-	//   err = nil
-	// })
-
+	err = x.collection.FindOne(_ctx, bson.M{"sid": sid}).Decode(&item)
 	if err != nil {
-		if errors.Is(err, qmgo.ErrNoSuchDocuments) {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			value = ""
 			err = errors.New("sid does not exist [" + sid + "]")
 			return
@@ -110,72 +94,40 @@ func (x *db) get(sid string) (value string, err error) {
 		err = errors.New("sid expired [" + sid + "]")
 		return
 	}
-
 	marshal, err := jsonMarshal(item.Value)
 	if err != nil {
 		return "", err
 	}
-
 	value = string(marshal)
 	err = nil
-
 	return
-}
-
-// parseValue -
-func (x *db) parseValue(value string) (map[string]interface{}, error) {
-	var values map[string]interface{}
-
-	if len(value) > 0 {
-		err := jsonUnmarshal([]byte(value), &values)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return values, nil
 }
 
 // save -
 func (x *db) save(sid string, values map[string]interface{}, expired int64) (err error) {
+	// TODO: Implement session txn logic
 	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
 	defer cancel()
-	// x.cHandler(x.collection, func(c *qmgo.Collection) {
-	_, err = x.client.Upsert(_ctx, bson.M{"sid": sid}, sessionItem{
-		SID:       sid,
-		Value:     values,
-		ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
-	})
-	//   if e != nil {
-	//     err = e
-	//     return
-	//   }
-	//   err = nil
-	// })
-
+	_, err = x.collection.UpdateOne(_ctx, bson.M{"sid": sid},
+		bson.M{"$set": &sessionItem{
+			SID:       sid,
+			Value:     values,
+			ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
+		}}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
 // delete -
 func (x *db) delete(sid string) (err error) {
+	// TODO: Implement session txn logic
 	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
 	defer cancel()
-	// x.cHandler(x.collection, func(c *qmgo.Collection) {
-	err = x.client.Remove(_ctx, bson.M{"sid": sid})
-	//   if e != nil {
-	//     err = e
-	//     return
-	//   }
-	//   err = nil
-	// })
-
+	_, err = x.collection.DeleteOne(_ctx, bson.M{"sid": sid})
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
