@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"sync"
 	"time"
 
 	"github.com/go-session/session/v3"
-	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoOpts "go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -43,18 +43,19 @@ func NewStore(cfg *Config) session.ManagerStore {
 			AuthSource:    cfg.AuthSource,
 		}
 	}
-	startedCommands := make(map[int64]bson.Raw)
+	var startedCommands sync.Map
 	cmdMonitor := &event.CommandMonitor{
 		Started: func(_ context.Context, evt *event.CommandStartedEvent) {
-			startedCommands[evt.RequestID] = evt.Command
+			startedCommands.Store(evt.RequestID, evt.Command)
 		},
 		Succeeded: func(_ context.Context, evt *event.CommandSucceededEvent) {
-			// log.Printf("cmd: %v success-resp: %v", startedCommands[evt.RequestID], evt.Reply)
-			delete(startedCommands, evt.RequestID)
+			startedCommands.Delete(evt.RequestID)
 		},
 		Failed: func(_ context.Context, evt *event.CommandFailedEvent) {
-			// log.Printf("cmd: %v failure-resp: %v", startedCommands[evt.RequestID], evt.Failure)
-			delete(startedCommands, evt.RequestID)
+			if cmd, ok := startedCommands.Load(evt.RequestID); ok {
+				log.Printf("cmd: %v failure-resp: %v", cmd, evt.Failure)
+				startedCommands.Delete(evt.RequestID)
+			}
 		},
 	}
 	opts.ApplyURI(cfg.URL).SetMonitor(cmdMonitor)
