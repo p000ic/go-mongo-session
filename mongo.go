@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-session/session/v3"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoOpts "go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -70,12 +71,36 @@ func NewStore(cfg *Config) session.ManagerStore {
 	return mgrStore
 }
 
-func newManagerStore(db *db) *managerStore {
+func newManagerStore(m *db) *managerStore {
+	s, err := m.cloneSession()
+	if err != nil {
+		return nil
+	}
+	defer m.endSession(s)
+	i := int32(60)
+	var indexModel []mongo.IndexModel
+	indexModel = append(indexModel, mongo.IndexModel{
+		Keys: bson.D{{"expired_at", 1}},
+		Options: mongoOpts.Index().
+			SetName("_" + m.collection.Name() + "_expired_at_").
+			SetExpireAfterSeconds(i),
+	})
+	indexModel = append(indexModel, mongo.IndexModel{
+		Keys: bson.D{{"sid", 1}},
+		Options: mongoOpts.Index().
+			SetName("_" + m.collection.Name() + "_sid_").
+			SetUnique(true),
+	})
+	_, err = m.collection.Indexes().CreateMany(m.ctx, indexModel)
+	if err != nil {
+		return nil
+	}
+
 	return &managerStore{
-		db:      db,
+		db:      m,
 		ctx:     context.Background(),
 		sid:     "",
-		expired: 0,
+		expired: int64(i),
 		values:  nil,
 		RWMutex: sync.RWMutex{},
 	}

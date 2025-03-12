@@ -74,14 +74,33 @@ func (x *db) cloneSession() (s *mongo.Session, err error) {
 	return
 }
 
+// endSession - endSession to Database
+func (x *db) endSession(s *mongo.Session) {
+	s.EndSession(x.ctx)
+}
+
 // get -
 func (x *db) get(sid string) (value string, err error) {
-	// TODO: Implement session txn logic
+	s, err := x.cloneSession()
+	if err != nil {
+		return "", err
+	}
+	defer x.endSession(s)
+
+	_sCtx := mongo.NewSessionContext(x.ctx, s)
+
+	if err = s.StartTransaction(); err != nil {
+		return "", err
+	}
+
 	var item sessionItem
-	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
+
+	_ctx, cancel := context.WithTimeout(_sCtx, 5*time.Second)
 	defer cancel()
+
 	err = x.collection.FindOne(_ctx, bson.M{"sid": sid}).Decode(&item)
 	if err != nil {
+		_ = s.AbortTransaction(context.Background())
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			value = ""
 			err = errors.New("sid does not exist [" + sid + "]")
@@ -94,20 +113,39 @@ func (x *db) get(sid string) (value string, err error) {
 		err = errors.New("sid expired [" + sid + "]")
 		return
 	}
+
+	if err = s.CommitTransaction(context.Background()); err != nil {
+		return "", err
+	}
+
 	marshal, err := jsonMarshal(item.Value)
 	if err != nil {
 		return "", err
 	}
+
 	value = string(marshal)
 	err = nil
+
 	return
 }
 
 // save -
 func (x *db) save(sid string, values map[string]interface{}, expired int64) (err error) {
-	// TODO: Implement session txn logic
-	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
+	s, err := x.cloneSession()
+	if err != nil {
+		return err
+	}
+	defer x.endSession(s)
+
+	_sCtx := mongo.NewSessionContext(x.ctx, s)
+
+	if err = s.StartTransaction(); err != nil {
+		return err
+	}
+
+	_ctx, cancel := context.WithTimeout(_sCtx, 5*time.Second)
 	defer cancel()
+
 	_, err = x.collection.UpdateOne(_ctx, bson.M{"sid": sid},
 		bson.M{"$set": &sessionItem{
 			SID:       sid,
@@ -115,19 +153,43 @@ func (x *db) save(sid string, values map[string]interface{}, expired int64) (err
 			ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
 		}}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
+		_ = s.AbortTransaction(context.Background())
 		return err
 	}
+
+	if err = s.CommitTransaction(context.Background()); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // delete -
 func (x *db) delete(sid string) (err error) {
-	// TODO: Implement session txn logic
-	_ctx, cancel := context.WithTimeout(x.ctx, 5*time.Second)
-	defer cancel()
-	_, err = x.collection.DeleteOne(_ctx, bson.M{"sid": sid})
+	s, err := x.cloneSession()
 	if err != nil {
 		return err
 	}
+	defer x.endSession(s)
+
+	_sCtx := mongo.NewSessionContext(x.ctx, s)
+
+	if err = s.StartTransaction(); err != nil {
+		return err
+	}
+
+	_ctx, cancel := context.WithTimeout(_sCtx, 5*time.Second)
+	defer cancel()
+
+	_, err = x.collection.DeleteOne(_ctx, bson.M{"sid": sid})
+	if err != nil {
+		_ = s.AbortTransaction(context.Background())
+		return err
+	}
+
+	if err = s.CommitTransaction(context.Background()); err != nil {
+		return err
+	}
+
 	return nil
 }
