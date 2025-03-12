@@ -95,7 +95,7 @@ func (x *db) get(sid string) (value string, err error) {
 
 	var item sessionItem
 
-	_ctx, cancel := context.WithTimeout(_sCtx, 5*time.Second)
+	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
 	defer cancel()
 
 	err = x.collection.FindOne(_ctx, bson.M{"sid": sid}).Decode(&item)
@@ -143,7 +143,7 @@ func (x *db) save(sid string, values map[string]interface{}, expired int64) (err
 		return err
 	}
 
-	_ctx, cancel := context.WithTimeout(_sCtx, 5*time.Second)
+	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
 	defer cancel()
 
 	_, err = x.collection.UpdateOne(_ctx, bson.M{"sid": sid},
@@ -178,7 +178,7 @@ func (x *db) delete(sid string) (err error) {
 		return err
 	}
 
-	_ctx, cancel := context.WithTimeout(_sCtx, 5*time.Second)
+	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
 	defer cancel()
 
 	_, err = x.collection.DeleteOne(_ctx, bson.M{"sid": sid})

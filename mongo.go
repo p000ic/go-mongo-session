@@ -20,10 +20,10 @@ var (
 	_             session.Store        = &store{}
 	jsonMarshal                        = json.Marshal
 	jsonUnmarshal                      = json.Unmarshal
-	minPoolSize                        = uint64(2)
-	maxPoolSize                        = uint64(50)
-	connTimeout                        = time.Second * 10  // 10 sec
-	maxIdleTime                        = time.Second * 300 // 5 min
+	minPoolSize                        = uint64(5)
+	maxPoolSize                        = uint64(99)
+	connTimeout                        = time.Second * 10 // 10 sec
+	maxIdleTime                        = time.Second * 1  // 1 sec
 )
 
 // NewStore Create an instance of a mongo store
@@ -77,7 +77,7 @@ func newManagerStore(m *db) *managerStore {
 		return nil
 	}
 	defer m.endSession(s)
-	i := int32(60)
+	i := int32(0)
 	var indexModel []mongo.IndexModel
 	indexModel = append(indexModel, mongo.IndexModel{
 		Keys: bson.D{{"expired_at", 1}},
