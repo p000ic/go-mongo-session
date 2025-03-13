@@ -71,33 +71,37 @@ func NewStore(cfg *Config) session.ManagerStore {
 	return mgrStore
 }
 
-func newManagerStore(m *db) *managerStore {
-	s, err := m.cloneSession()
+func newManagerStore(db *db) *managerStore {
+	s, err := db.cloneSession()
 	if err != nil {
 		return nil
 	}
-	defer m.endSession(s)
+	defer db.endSession(s)
+
+	// TODO: Get expired from config and set it in the index,
+	//  this will more safer than setting it to 0
+
 	i := int32(0)
 	var indexModel []mongo.IndexModel
 	indexModel = append(indexModel, mongo.IndexModel{
 		Keys: bson.D{{"expired_at", 1}},
 		Options: mongoOpts.Index().
-			SetName("_" + m.collection.Name() + "_expired_at_").
+			SetName("_" + db.collection.Name() + "_expired_at_").
 			SetExpireAfterSeconds(i),
 	})
 	indexModel = append(indexModel, mongo.IndexModel{
 		Keys: bson.D{{"sid", 1}},
 		Options: mongoOpts.Index().
-			SetName("_" + m.collection.Name() + "_sid_").
+			SetName("_" + db.collection.Name() + "_sid_").
 			SetUnique(true),
 	})
-	_, err = m.collection.Indexes().CreateMany(m.ctx, indexModel)
+	_, err = db.collection.Indexes().CreateMany(db.ctx, indexModel)
 	if err != nil {
 		return nil
 	}
 
 	return &managerStore{
-		db:      m,
+		db:      db,
 		ctx:     context.Background(),
 		sid:     "",
 		expired: int64(i),
