@@ -81,21 +81,22 @@ func (x *db) endSession(s *mongo.Session) {
 
 // get -
 func (x *db) get(sid string) (value string, err error) {
-	s, err := x.cloneSession()
-	if err != nil {
-		return "", err
-	}
-	defer x.endSession(s)
-
-	_sCtx := mongo.NewSessionContext(x.ctx, s)
-
-	if err = s.StartTransaction(); err != nil {
-		return "", err
-	}
-	// _sCtx := x.ctx
+	// s, err := x.cloneSession()
+	// if err != nil {
+	// 	return "", err
+	// }
+	// defer x.endSession(s)
+	//
+	// _sCtx := mongo.NewSessionContext(x.ctx, s)
+	//
+	// if err = s.StartTransaction(); err != nil {
+	// 	return "", err
+	// }
 	var item sessionItem
 
-	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
+	_ctx, cancel := context.WithTimeout(
+		// _sCtx, maxIdleTime)
+		x.ctx, maxIdleTime)
 	defer cancel()
 
 	err = x.collection.FindOne(_ctx, bson.M{"sid": sid}).Decode(&item)
@@ -103,20 +104,26 @@ func (x *db) get(sid string) (value string, err error) {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			value = ""
 			err = errors.New("sid does not exist [" + sid + "]")
+			// if err = s.CommitTransaction(context.Background()); err != nil {
+			// 	return "", err
+			// }
 			return
 		}
-		_ = s.AbortTransaction(context.Background())
+		// _ = s.AbortTransaction(context.Background())
 		value = ""
 		return
 	} else if item.ExpiredAt.Before(time.Now().UTC()) {
 		value = ""
 		err = errors.New("sid expired [" + sid + "]")
+		// if err = s.CommitTransaction(context.Background()); err != nil {
+		// 	return "", err
+		// }
 		return
 	}
 
-	if err = s.CommitTransaction(context.Background()); err != nil {
-		return "", err
-	}
+	// if err = s.CommitTransaction(context.Background()); err != nil {
+	// 	return "", err
+	// }
 
 	marshal, err := jsonMarshal(item.Value)
 	if err != nil {
@@ -131,20 +138,21 @@ func (x *db) get(sid string) (value string, err error) {
 
 // save -
 func (x *db) save(sid string, values map[string]interface{}, expired int64) (err error) {
-	s, err := x.cloneSession()
-	if err != nil {
-		return err
-	}
-	defer x.endSession(s)
+	// s, err := x.cloneSession()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer x.endSession(s)
+	//
+	// _sCtx := mongo.NewSessionContext(x.ctx, s)
+	//
+	// if err = s.StartTransaction(); err != nil {
+	// 	return err
+	// }
 
-	_sCtx := mongo.NewSessionContext(x.ctx, s)
-
-	if err = s.StartTransaction(); err != nil {
-		return err
-	}
-	// _sCtx := x.ctx
-
-	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
+	_ctx, cancel := context.WithTimeout(
+		// _sCtx, maxIdleTime)
+		x.ctx, maxIdleTime)
 	defer cancel()
 
 	_, err = x.collection.UpdateOne(_ctx, bson.M{"sid": sid},
@@ -154,44 +162,45 @@ func (x *db) save(sid string, values map[string]interface{}, expired int64) (err
 			ExpiredAt: time.Now().UTC().Add(time.Duration(expired) * time.Second),
 		}}, options.UpdateOne().SetUpsert(true))
 	if err != nil {
-		_ = s.AbortTransaction(context.Background())
+		// _ = s.AbortTransaction(context.Background())
 		return err
 	}
 
-	if err = s.CommitTransaction(context.Background()); err != nil {
-		return err
-	}
+	// if err = s.CommitTransaction(context.Background()); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
 
 // delete -
 func (x *db) delete(sid string) (err error) {
-	s, err := x.cloneSession()
-	if err != nil {
-		return err
-	}
-	defer x.endSession(s)
+	// s, err := x.cloneSession()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer x.endSession(s)
+	//
+	// _sCtx := mongo.NewSessionContext(x.ctx, s)
+	//
+	// if err = s.StartTransaction(); err != nil {
+	// 	return err
+	// }
 
-	_sCtx := mongo.NewSessionContext(x.ctx, s)
-
-	if err = s.StartTransaction(); err != nil {
-		return err
-	}
-	// _sCtx := x.ctx
-
-	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
+	_ctx, cancel := context.WithTimeout(
+		// _sCtx, maxIdleTime)
+		x.ctx, maxIdleTime)
 	defer cancel()
 
 	_, err = x.collection.DeleteOne(_ctx, bson.M{"sid": sid})
 	if err != nil {
-		_ = s.AbortTransaction(context.Background())
+		// _ = s.AbortTransaction(context.Background())
 		return err
 	}
 
-	if err = s.CommitTransaction(context.Background()); err != nil {
-		return err
-	}
+	// if err = s.CommitTransaction(context.Background()); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
