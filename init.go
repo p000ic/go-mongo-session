@@ -92,7 +92,7 @@ func (x *db) get(sid string) (value string, err error) {
 	if err = s.StartTransaction(); err != nil {
 		return "", err
 	}
-
+	// _sCtx := x.ctx
 	var item sessionItem
 
 	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
@@ -100,12 +100,12 @@ func (x *db) get(sid string) (value string, err error) {
 
 	err = x.collection.FindOne(_ctx, bson.M{"sid": sid}).Decode(&item)
 	if err != nil {
-		_ = s.AbortTransaction(context.Background())
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			value = ""
 			err = errors.New("sid does not exist [" + sid + "]")
 			return
 		}
+		_ = s.AbortTransaction(context.Background())
 		value = ""
 		return
 	} else if item.ExpiredAt.Before(time.Now().UTC()) {
@@ -142,6 +142,7 @@ func (x *db) save(sid string, values map[string]interface{}, expired int64) (err
 	if err = s.StartTransaction(); err != nil {
 		return err
 	}
+	// _sCtx := x.ctx
 
 	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
 	defer cancel()
@@ -177,6 +178,7 @@ func (x *db) delete(sid string) (err error) {
 	if err = s.StartTransaction(); err != nil {
 		return err
 	}
+	// _sCtx := x.ctx
 
 	_ctx, cancel := context.WithTimeout(_sCtx, maxIdleTime)
 	defer cancel()
